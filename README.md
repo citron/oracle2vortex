@@ -281,11 +281,20 @@ echo "SELECT * FROM my_table WHERE ROWNUM <= 10;" > tests_local/test.sql
 
 ## Licence
 
-[À définir]
+Copyright (c) 2026 William Gacquer
 
-## Contributeurs
+Ce projet est sous licence EUPL-1.2 (European Union Public Licence v. 1.2).
 
-[À définir]
+**IMPORTANT - Restriction d'usage commercial :**  
+L'utilisation commerciale de ce logiciel est interdite sans accord écrit préalable avec l'auteur.  
+Pour toute demande de licence commerciale, veuillez contacter : **oracle2vortex@amilto.com**
+
+Voir le fichier [LICENSE](LICENSE) pour le texte complet de la licence.
+
+## Auteur
+
+**William Gacquer**  
+Contact : oracle2vortex@amilto.com
 
 ## Historique des tests
 
