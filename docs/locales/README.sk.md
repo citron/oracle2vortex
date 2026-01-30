@@ -108,6 +108,35 @@ Príklad: 50000 riadkov × 1 KB = 100 MB na dávku (namiesto načítania celej t
 
 **Pozrite tiež:** `BATCH_PROCESSING.md` a `README_LARGE_DATASETS.md` pre ďalšie detaily.
 
+### Preskočenie LOB stĺpcov
+
+Oracle LOB typy (CLOB, BLOB, NCLOB) môžu byť veľmi veľké a nemusia byť potrebné na analýzu. Použite `--skip-lobs` na ich vylúčenie:
+
+```bash
+# Preskočte LOB stĺpce na zníženie veľkosti súboru a zlepšenie výkonu
+oracle2vortex \
+  -f query.sql \
+  -o data.vortex \
+  --host db.example.com \
+  --port 1521 \
+  -u hr \
+  -p secret123 \
+  --sid PROD \
+  --skip-lobs
+```
+
+**Ako to funguje:**
+- Automaticky deteguje a filtruje stĺpce obsahujúce LOB dáta
+- LOB sa identifikujú podľa veľkosti (> 4000 znakov) alebo binárnych indikátorov
+- Prvý zaznamenaný záznam zobrazí, koľko stĺpcov bolo preskočených
+- Výrazne znižuje veľkosť súboru a využitie pamäte pre tabuľky s veľkými textovými/binárnymi poľami
+
+**Prípady použitia:**
+- Export tabuliek metadát s poľami popisu
+- Práca s tabuľkami obsahujúcimi XML alebo veľké JSON dokumenty
+- Zameranie na štruktúrované dáta pri ignorovaní binárneho obsahu
+- Optimalizácia výkonu pre tabuľky s mnohými veľkými stĺpcami
+
 ### Príklad so SQL súborom
 
 Vytvorte súbor `query.sql`:
@@ -237,6 +266,7 @@ vx info output.vortex
 - **Buffer v pamäti**: Záznamy sú aktuálne bufferované pred zápisom (budúca optimalizácia možná)
 - **Pevná schéma**: Odvodená len z prvého záznamu (nasledujúce záznamy musia zodpovedať)
 - **Bezpečnosť**: Heslo je predané ako CLI argument (viditeľné pomocou `ps`). V produkcii používajte premenné prostredia.
+- **LOB typy**: Predvolene sú LOB stĺpce (CLOB, BLOB, NCLOB) zahrnuté. Použite `--skip-lobs` na ich vylúčenie pre lepší výkon a menšie veľkosti súborov.
 
 ## Vývoj
 

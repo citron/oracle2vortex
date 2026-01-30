@@ -74,6 +74,7 @@ oracle2vortex \
 | `--sid` | | SID o nombre de servicio de Oracle | (requerido) |
 | `--sqlcl-path` | | Ruta al ejecutable SQLcl | `sql` |
 | `--auto-batch-rows` | | Número de filas por lote (0 = desactivado) | 0 |
+| `--skip-lobs` | | Omitir tipos LOB de Oracle (CLOB, BLOB, NCLOB) | false |
 
 ### Auto-Batching (Tablas grandes)
 
@@ -107,6 +108,35 @@ oracle2vortex \
 Ejemplo: 50000 filas × 1 KB = 100 MB por lote (en lugar de cargar toda la tabla)
 
 **Véase también:** `BATCH_PROCESSING.md` y `README_LARGE_DATASETS.md` para más detalles.
+
+### Omitir columnas LOB
+
+Los tipos LOB de Oracle (CLOB, BLOB, NCLOB) pueden ser muy grandes y puede que no sean necesarios para el análisis. Use `--skip-lobs` para excluirlos:
+
+```bash
+# Omitir columnas LOB para reducir el tamaño del archivo y mejorar el rendimiento
+oracle2vortex \
+  -f query.sql \
+  -o data.vortex \
+  --host db.example.com \
+  --port 1521 \
+  -u hr \
+  -p secret123 \
+  --sid PROD \
+  --skip-lobs
+```
+
+**Cómo funciona:**
+- Detecta y filtra automáticamente las columnas que contienen datos LOB
+- Los LOB se identifican por tamaño (> 4000 caracteres) o indicadores binarios
+- El primer registro registrado mostrará cuántas columnas se omitieron
+- Reduce significativamente el tamaño del archivo y el uso de memoria para tablas con campos de texto/binarios grandes
+
+**Casos de uso:**
+- Exportar tablas de metadatos con campos de descripción
+- Trabajar con tablas que contienen documentos XML o JSON grandes
+- Centrarse en datos estructurados mientras se ignora el contenido binario
+- Optimización del rendimiento para tablas con muchas columnas grandes
 
 ### Ejemplo con archivo SQL
 
@@ -237,6 +267,7 @@ vx info output.vortex
 - **Búfer en memoria**: Los registros se almacenan actualmente en búfer antes de escribirse (posible optimización futura)
 - **Esquema fijo**: Inferido solo del primer registro (los registros posteriores deben coincidir)
 - **Seguridad**: La contraseña se pasa como argumento CLI (visible con `ps`). Use variables de entorno en producción.
+- **Tipos LOB**: Por defecto, las columnas LOB (CLOB, BLOB, NCLOB) están incluidas. Use `--skip-lobs` para excluirlas y obtener mejor rendimiento y archivos más pequeños.
 
 ## Desarrollo
 

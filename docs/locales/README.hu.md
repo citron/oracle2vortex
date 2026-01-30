@@ -74,6 +74,7 @@ oracle2vortex \
 | `--sid` | | Oracle SID vagy szolgáltatásnév | (kötelező) |
 | `--sqlcl-path` | | SQLcl végrehajtható útvonala | `sql` |
 | `--auto-batch-rows` | | Sorok száma kötegenkénként (0 = kikapcsolva) | 0 |
+| `--skip-lobs` | | Oracle LOB típusok kihagyása (CLOB, BLOB, NCLOB) | false |
 
 ### Auto-kötegelt feldolgozás (nagy táblák)
 
@@ -107,6 +108,35 @@ oracle2vortex \
 Példa: 50000 sor × 1 KB = 100 MB kötegenként (teljes tábla betöltése helyett)
 
 **Lásd még:** `BATCH_PROCESSING.md` és `README_LARGE_DATASETS.md` további részletekért.
+
+### LOB oszlopok kihagyása
+
+Az Oracle LOB típusok (CLOB, BLOB, NCLOB) nagyon nagyok lehetnek és esetleg nem szükségesek az elemzéshez. Használja a `--skip-lobs` opciót a kizárásukhoz:
+
+```bash
+# LOB oszlopok kihagyása a fájlméret csökkentése és teljesítmény javítása érdekében
+oracle2vortex \
+  -f query.sql \
+  -o data.vortex \
+  --host db.example.com \
+  --port 1521 \
+  -u hr \
+  -p secret123 \
+  --sid PROD \
+  --skip-lobs
+```
+
+**Működés:**
+- Automatikusan érzékeli és kiszűri a LOB adatokat tartalmazó oszlopokat
+- A LOB-ok méret alapján (> 4000 karakter) vagy bináris jelzők alapján azonosítódnak
+- Az első naplózott rekord mutatja, hány oszlop lett kihagyva
+- Jelentősen csökkenti a fájlméretet és memóriahasználatot nagy szöveg/bináris mezőket tartalmazó tábláknál
+
+**Használati esetek:**
+- Metaadat táblák exportálása leíró mezőkkel
+- XML vagy nagy JSON dokumentumokat tartalmazó táblákkal való munka
+- Strukturált adatokra való összpontosítás bináris tartalom figyelmen kívül hagyásával
+- Teljesítmény optimalizálás sok nagy oszlopot tartalmazó tábláknál
 
 ### Példa SQL fájllal
 
@@ -237,6 +267,7 @@ vx info output.vortex
 - **Memória puffer**: A rekordok jelenleg pufferelődnek írás előtt (jövőbeli optimalizálás lehetséges)
 - **Fix séma**: Csak az első rekordból következtetett (a további rekordoknak meg kell egyezniük)
 - **Biztonság**: A jelszó CLI argumentumként kerül átadásra (`ps`-sel látható). Használjon környezeti változókat éles környezetben.
+- **LOB típusok**: Alapértelmezés szerint a LOB oszlopok (CLOB, BLOB, NCLOB) bekerülnek. Használja a `--skip-lobs` opciót a kizárásukhoz jobb teljesítmény és kisebb fájlméret érdekében.
 
 ## Fejlesztés
 

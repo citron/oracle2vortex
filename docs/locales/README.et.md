@@ -74,6 +74,7 @@ oracle2vortex \
 | `--sid` | | Oracle SID või teenuse nimi | (kohustuslik) |
 | `--sqlcl-path` | | Tee SQLcl käivitatava failini | `sql` |
 | `--auto-batch-rows` | | Ridade arv partii kohta (0 = välja lülitatud) | 0 |
+| `--skip-lobs` | | Jäta vahele Oracle LOB tüübid (CLOB, BLOB, NCLOB) | false |
 
 ### Automaatne partiitöötlus (suured tabelid)
 
@@ -107,6 +108,35 @@ oracle2vortex \
 Näide: 50000 rida × 1 KB = 100 MB partii kohta (kogu tabeli laadimise asemel)
 
 **Vaata ka:** `BATCH_PROCESSING.md` ja `README_LARGE_DATASETS.md` rohkemate detailide jaoks.
+
+### LOB veergude vahelejätmine
+
+Oracle LOB tüübid (CLOB, BLOB, NCLOB) võivad olla väga suured ja ei pruugi olla analüüsiks vajalikud. Kasutage `--skip-lobs` nende välistamiseks:
+
+```bash
+# Jäta vahele LOB veerud faili suuruse vähendamiseks ja jõudluse parandamiseks
+oracle2vortex \
+  -f query.sql \
+  -o data.vortex \
+  --host db.example.com \
+  --port 1521 \
+  -u hr \
+  -p secret123 \
+  --sid PROD \
+  --skip-lobs
+```
+
+**Kuidas see toimib:**
+- Tuvastab ja filtreerib automaatselt LOB andmeid sisaldavad veerud
+- LOB-id tuvastatakse suuruse (> 4000 tähemärki) või binaarsetest indikaatoritest
+- Esimene logitud kirje näitab, mitu veergu vahele jäeti
+- Vähendab oluliselt faili suurust ja mälukasutust suurte teksti-/binaarväljadega tabelite puhul
+
+**Kasutusjuhud:**
+- Metaandmete tabelite eksportimine kirjeldusväljadega
+- Töötamine XML-i või suuri JSON-dokumente sisaldavate tabelitega
+- Fookus struktureeritud andmetel, ignoreerides binaarset sisu
+- Jõudluse optimeerimine paljude suurte veergudega tabelite jaoks
 
 ### Näide SQL failiga
 
@@ -237,6 +267,7 @@ vx info output.vortex
 - **Puhver mälus**: Kirjed puhverdatakse praegu enne kirjutamist (tulevane optimeerimine võimalik)
 - **Fikseeritud skeem**: Järeldatud ainult esimesest kirjest (järgmised kirjed peavad vastama)
 - **Turvalisus**: Parool edastatakse CLI argumendina (nähtav `ps`-ga). Kasutage tootmises keskkonnamuutujaid.
+- **LOB tüübid**: Vaikimisi on LOB veerud (CLOB, BLOB, NCLOB) kaasatud. Kasutage `--skip-lobs` nende välistamiseks parema jõudluse ja väiksemate failide suuruse saavutamiseks.
 
 ## Arendus
 

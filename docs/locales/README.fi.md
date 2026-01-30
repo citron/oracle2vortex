@@ -74,6 +74,7 @@ oracle2vortex \
 | `--sid` | | Oracle SID tai palvelunimi | (vaaditaan) |
 | `--sqlcl-path` | | SQLcl-suoritettavan polku | `sql` |
 | `--auto-batch-rows` | | Rivien määrä erässä (0 = pois käytöstä) | 0 |
+| `--skip-lobs` | | Ohita Oracle LOB-tyypit (CLOB, BLOB, NCLOB) | false |
 
 ### Automaattinen eräkäsittely (suuret taulut)
 
@@ -107,6 +108,35 @@ oracle2vortex \
 Esimerkki: 50000 riviä × 1 KB = 100 MB per erä (koko taulun lataamisen sijaan)
 
 **Katso myös:** `BATCH_PROCESSING.md` ja `README_LARGE_DATASETS.md` lisätietoja varten.
+
+### LOB-sarakkeiden ohittaminen
+
+Oracle LOB-tyypit (CLOB, BLOB, NCLOB) voivat olla erittäin suuria eivätkä välttämättä tarvita analyysiä varten. Käytä `--skip-lobs` -optiota niiden poissulkemiseen:
+
+```bash
+# Ohita LOB-sarakkeet tiedostokoon pienentämiseksi ja suorituskyvyn parantamiseksi
+oracle2vortex \
+  -f query.sql \
+  -o data.vortex \
+  --host db.example.com \
+  --port 1521 \
+  -u hr \
+  -p secret123 \
+  --sid PROD \
+  --skip-lobs
+```
+
+**Toimintaperiaate:**
+- Tunnistaa ja suodattaa automaattisesti LOB-tietoja sisältävät sarakkeet
+- LOB:t tunnistetaan koon (> 4000 merkkiä) tai binääriindikaattoreiden perusteella
+- Ensimmäinen kirjattu tietue näyttää, kuinka monta saraketta ohitettiin
+- Pienentää merkittävästi tiedostokokoa ja muistinkäyttöä tauluissa, joissa on suuria teksti-/binäärikenttiä
+
+**Käyttötapaukset:**
+- Metadatataulujen vienti kuvauskentillä
+- XML- tai suuria JSON-dokumentteja sisältävien taulujen käsittely
+- Rakenteellisen datan keskittyminen binäärisäällön huomiotta jättäen
+- Suorituskyvyn optimointi useita suuria sarakkeita sisältäville tauluille
 
 ### Esimerkki SQL-tiedostolla
 
@@ -237,6 +267,7 @@ vx info output.vortex
 - **Muistipuskuri**: Tietueet puskuroidaan tällä hetkellä ennen kirjoitusta (tulevaa optimointia mahdollista)
 - **Kiinteä skeema**: Päätelty vain ensimmäisestä tietueesta (seuraavien tietueiden on vastattava)
 - **Turvallisuus**: Salasana välitetään CLI-argumenttina (näkyvissä `ps`:llä). Käytä ympäristömuuttujia tuotannossa.
+- **LOB-tyypit**: Oletusarvoisesti LOB-sarakkeet (CLOB, BLOB, NCLOB) sisällytetään. Käytä `--skip-lobs` -optiota niiden poissulkemiseen paremman suorituskyvyn ja pienempien tiedostokokojen saavuttamiseksi.
 
 ## Kehitys
 

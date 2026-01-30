@@ -74,6 +74,7 @@ oracle2vortex \
 | `--sid` | | Oracle-SID oder Dienstname | (erforderlich) |
 | `--sqlcl-path` | | Pfad zur SQLcl-Ausführungsdatei | `sql` |
 | `--auto-batch-rows` | | Anzahl Zeilen pro Stapel (0 = deaktiviert) | 0 |
+| `--skip-lobs` | | Oracle LOB-Typen überspringen (CLOB, BLOB, NCLOB) | false |
 
 ### Auto-Batching (Große Tabellen)
 
@@ -107,6 +108,35 @@ oracle2vortex \
 Beispiel: 50000 Zeilen × 1 KB = 100 MB pro Stapel (anstatt die gesamte Tabelle zu laden)
 
 **Siehe auch:** `BATCH_PROCESSING.md` und `README_LARGE_DATASETS.md` für weitere Details.
+
+### LOB-Spalten überspringen
+
+Oracle LOB-Typen (CLOB, BLOB, NCLOB) können sehr groß sein und werden möglicherweise nicht für die Analyse benötigt. Verwenden Sie `--skip-lobs`, um sie auszuschließen:
+
+```bash
+# LOB-Spalten überspringen, um Dateigröße zu reduzieren und Leistung zu verbessern
+oracle2vortex \
+  -f query.sql \
+  -o data.vortex \
+  --host db.example.com \
+  --port 1521 \
+  -u hr \
+  -p secret123 \
+  --sid PROD \
+  --skip-lobs
+```
+
+**Funktionsweise:**
+- Erkennt und filtert automatisch Spalten mit LOB-Daten
+- LOBs werden anhand der Größe (> 4000 Zeichen) oder binärer Indikatoren identifiziert
+- Der erste protokollierte Datensatz zeigt, wie viele Spalten übersprungen wurden
+- Reduziert erheblich Dateigröße und Speicherverbrauch bei Tabellen mit großen Text-/Binärfeldern
+
+**Anwendungsfälle:**
+- Export von Metadatentabellen mit Beschreibungsfeldern
+- Arbeiten mit Tabellen, die XML- oder große JSON-Dokumente enthalten
+- Konzentration auf strukturierte Daten unter Ignorierung von Binärinhalten
+- Leistungsoptimierung für Tabellen mit vielen großen Spalten
 
 ### Beispiel mit SQL-Datei
 
@@ -237,6 +267,7 @@ vx info output.vortex
 - **In-Memory-Puffer**: Datensätze werden derzeit vor dem Schreiben gepuffert (zukünftige Optimierung möglich)
 - **Fixes Schema**: Nur aus dem ersten Datensatz inferiert (nachfolgende Datensätze müssen übereinstimmen)
 - **Sicherheit**: Passwort wird als CLI-Argument übergeben (sichtbar mit `ps`). In Produktion Umgebungsvariablen verwenden.
+- **LOB-Typen**: Standardmäßig werden LOB-Spalten (CLOB, BLOB, NCLOB) einbezogen. Verwenden Sie `--skip-lobs`, um sie für bessere Leistung und kleinere Dateigrößen auszuschließen.
 
 ## Entwicklung
 

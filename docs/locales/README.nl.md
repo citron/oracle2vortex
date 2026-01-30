@@ -74,6 +74,7 @@ oracle2vortex \
 | `--sid` | | Oracle-SID of servicenaam | (vereist) |
 | `--sqlcl-path` | | Pad naar SQLcl-uitvoerbaar bestand | `sql` |
 | `--auto-batch-rows` | | Aantal rijen per batch (0 = uitgeschakeld) | 0 |
+| `--skip-lobs` | | Oracle LOB-typen overslaan (CLOB, BLOB, NCLOB) | false |
 
 ### Auto-Batching (Grote tabellen)
 
@@ -107,6 +108,35 @@ oracle2vortex \
 Voorbeeld: 50000 rijen × 1 KB = 100 MB per batch (in plaats van de hele tabel laden)
 
 **Zie ook:** `BATCH_PROCESSING.md` en `README_LARGE_DATASETS.md` voor meer details.
+
+### LOB-kolommen overslaan
+
+Oracle LOB-typen (CLOB, BLOB, NCLOB) kunnen zeer groot zijn en zijn mogelijk niet nodig voor analyse. Gebruik `--skip-lobs` om ze uit te sluiten:
+
+```bash
+# LOB-kolommen overslaan om bestandsgrootte te verminderen en prestaties te verbeteren
+oracle2vortex \
+  -f query.sql \
+  -o data.vortex \
+  --host db.example.com \
+  --port 1521 \
+  -u hr \
+  -p secret123 \
+  --sid PROD \
+  --skip-lobs
+```
+
+**Hoe het werkt:**
+- Detecteert en filtert automatisch kolommen met LOB-gegevens
+- LOB's worden geïdentificeerd op grootte (> 4000 tekens) of binaire indicatoren
+- Het eerste geregistreerde record toont hoeveel kolommen zijn overgeslagen
+- Vermindert de bestandsgrootte en het geheugengebruik aanzienlijk voor tabellen met grote tekst-/binaire velden
+
+**Gebruiksscenario's:**
+- Exporteren van metadatatabellen met beschrijvingsvelden
+- Werken met tabellen die XML- of grote JSON-documenten bevatten
+- Focussen op gestructureerde gegevens terwijl binaire inhoud wordt genegeerd
+- Prestatieoptimalisatie voor tabellen met veel grote kolommen
 
 ### Voorbeeld met SQL-bestand
 
@@ -237,6 +267,7 @@ vx info output.vortex
 - **In-memory buffer**: Records worden momenteel gebufferd voor schrijven (toekomstige optimalisatie mogelijk)
 - **Vast schema**: Alleen afgeleid van het eerste record (volgende records moeten overeenkomen)
 - **Beveiliging**: Wachtwoord wordt doorgegeven als CLI-argument (zichtbaar met `ps`). Gebruik omgevingsvariabelen in productie.
+- **LOB-typen**: Standaard worden LOB-kolommen (CLOB, BLOB, NCLOB) opgenomen. Gebruik `--skip-lobs` om ze uit te sluiten voor betere prestaties en kleinere bestandsgroottes.
 
 ## Ontwikkeling
 

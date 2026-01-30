@@ -74,6 +74,7 @@ oracle2vortex \
 | `--sid` | | SID o nome servizio Oracle | (richiesto) |
 | `--sqlcl-path` | | Percorso dell'eseguibile SQLcl | `sql` |
 | `--auto-batch-rows` | | Numero di righe per batch (0 = disabilitato) | 0 |
+| `--skip-lobs` | | Salta i tipi LOB Oracle (CLOB, BLOB, NCLOB) | false |
 
 ### Auto-Batching (Tabelle grandi)
 
@@ -107,6 +108,35 @@ oracle2vortex \
 Esempio: 50000 righe × 1 KB = 100 MB per batch (invece di caricare l'intera tabella)
 
 **Vedi anche:** `BATCH_PROCESSING.md` e `README_LARGE_DATASETS.md` per maggiori dettagli.
+
+### Saltare le colonne LOB
+
+I tipi LOB Oracle (CLOB, BLOB, NCLOB) possono essere molto grandi e potrebbero non essere necessari per l'analisi. Utilizzare `--skip-lobs` per escluderli:
+
+```bash
+# Salta le colonne LOB per ridurre le dimensioni del file e migliorare le prestazioni
+oracle2vortex \
+  -f query.sql \
+  -o data.vortex \
+  --host db.example.com \
+  --port 1521 \
+  -u hr \
+  -p secret123 \
+  --sid PROD \
+  --skip-lobs
+```
+
+**Come funziona:**
+- Rileva e filtra automaticamente le colonne contenenti dati LOB
+- I LOB sono identificati per dimensione (> 4000 caratteri) o indicatori binari
+- Il primo record registrato mostrerà quante colonne sono state saltate
+- Riduce significativamente le dimensioni del file e l'utilizzo della memoria per tabelle con campi di testo/binari di grandi dimensioni
+
+**Casi d'uso:**
+- Esportare tabelle di metadati con campi di descrizione
+- Lavorare con tabelle contenenti documenti XML o JSON di grandi dimensioni
+- Concentrarsi sui dati strutturati ignorando il contenuto binario
+- Ottimizzazione delle prestazioni per tabelle con molte colonne grandi
 
 ### Esempio con file SQL
 
@@ -237,6 +267,7 @@ vx info output.vortex
 - **Buffer in memoria**: I record sono attualmente bufferizzati prima della scrittura (possibile ottimizzazione futura)
 - **Schema fisso**: Inferito solo dal primo record (i record successivi devono corrispondere)
 - **Sicurezza**: La password viene passata come argomento CLI (visibile con `ps`). Utilizzare variabili d'ambiente in produzione.
+- **Tipi LOB**: Per impostazione predefinita, le colonne LOB (CLOB, BLOB, NCLOB) sono incluse. Utilizzare `--skip-lobs` per escluderle per migliori prestazioni e file di dimensioni inferiori.
 
 ## Sviluppo
 

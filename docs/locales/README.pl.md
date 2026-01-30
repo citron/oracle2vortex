@@ -74,6 +74,7 @@ oracle2vortex \
 | `--sid` | | SID lub nazwa usługi Oracle | (wymagane) |
 | `--sqlcl-path` | | Ścieżka do pliku wykonywalnego SQLcl | `sql` |
 | `--auto-batch-rows` | | Liczba wierszy na partię (0 = wyłączone) | 0 |
+| `--skip-lobs` | | Pomiń typy LOB Oracle (CLOB, BLOB, NCLOB) | false |
 
 ### Auto-Batching (Duże tabele)
 
@@ -107,6 +108,35 @@ oracle2vortex \
 Przykład: 50000 wierszy × 1 KB = 100 MB na partię (zamiast ładowania całej tabeli)
 
 **Zobacz także:** `BATCH_PROCESSING.md` i `README_LARGE_DATASETS.md` po więcej szczegółów.
+
+### Pomijanie kolumn LOB
+
+Typy LOB Oracle (CLOB, BLOB, NCLOB) mogą być bardzo duże i mogą nie być potrzebne do analizy. Użyj `--skip-lobs`, aby je wykluczyć:
+
+```bash
+# Pomiń kolumny LOB, aby zmniejszyć rozmiar pliku i poprawić wydajność
+oracle2vortex \
+  -f query.sql \
+  -o data.vortex \
+  --host db.example.com \
+  --port 1521 \
+  -u hr \
+  -p secret123 \
+  --sid PROD \
+  --skip-lobs
+```
+
+**Jak to działa:**
+- Automatycznie wykrywa i filtruje kolumny zawierające dane LOB
+- LOB są identyfikowane po rozmiarze (> 4000 znaków) lub wskaźnikach binarnych
+- Pierwszy zarejestrowany rekord pokaże, ile kolumn zostało pominiętych
+- Znacząco zmniejsza rozmiar pliku i użycie pamięci dla tabel z dużymi polami tekstowymi/binarnymi
+
+**Przypadki użycia:**
+- Eksportowanie tabel metadanych z polami opisu
+- Praca z tabelami zawierającymi dokumenty XML lub duże dokumenty JSON
+- Skupienie się na danych strukturalnych z pominięciem zawartości binarnej
+- Optymalizacja wydajności dla tabel z wieloma dużymi kolumnami
 
 ### Przykład z plikiem SQL
 
@@ -237,6 +267,7 @@ vx info output.vortex
 - **Bufor w pamięci**: Rekordy są obecnie buforowane przed zapisem (możliwa optymalizacja w przyszłości)
 - **Stały schemat**: Wywnioskowany tylko z pierwszego rekordu (kolejne rekordy muszą pasować)
 - **Bezpieczeństwo**: Hasło jest przekazywane jako argument CLI (widoczne przez `ps`). Użyj zmiennych środowiskowych w produkcji.
+- **Typy LOB**: Domyślnie kolumny LOB (CLOB, BLOB, NCLOB) są uwzględniane. Użyj `--skip-lobs`, aby je wykluczyć dla lepszej wydajności i mniejszych rozmiarów plików.
 
 ## Rozwój
 

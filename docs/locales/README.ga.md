@@ -74,6 +74,7 @@ oracle2vortex \
 | `--sid` | | SID Oracle nó ainm seirbhíse | (riachtanach) |
 | `--sqlcl-path` | | Cosán chuig an gcomhad inrite SQLcl | `sql` |
 | `--auto-batch-rows` | | Líon na línte in aghaidh an bhaisc (0 = díchumasaithe) | 0 |
+| `--skip-lobs` | | Scipeáil cineálacha LOB Oracle (CLOB, BLOB, NCLOB) | false |
 
 ### Uath-bhaiscíocht (táblaí móra)
 
@@ -107,6 +108,35 @@ oracle2vortex \
 Sampla: 50000 líne × 1 KB = 100 MB in aghaidh an bhaisc (in ionad an tábla iomlán a lódáil)
 
 **Féach freisin:** `BATCH_PROCESSING.md` agus `README_LARGE_DATASETS.md` le haghaidh tuilleadh sonraí.
+
+### Scipeáil colúin LOB
+
+Is féidir le cineálacha LOB Oracle (CLOB, BLOB, NCLOB) a bheith an-mhór agus b'fhéidir nach bhfuil gá leo le haghaidh anailíse. Úsáid `--skip-lobs` chun iad a eisiamh:
+
+```bash
+# Scipeáil colúin LOB chun méid an chomhaid a laghdú agus feidhmíocht a fheabhsú
+oracle2vortex \
+  -f query.sql \
+  -o data.vortex \
+  --host db.example.com \
+  --port 1521 \
+  -u hr \
+  -p secret123 \
+  --sid PROD \
+  --skip-lobs
+```
+
+**Conas a oibríonn sé:**
+- Braitheann sé agus scagann sé go huathoibríoch colúin ina bhfuil sonraí LOB
+- Aithnítear LOBanna de réir méide (> 4000 carachtar) nó táscairí dénártha
+- Taispeánfaidh an chéad taifead cláraithe cé mhéad colún a scipeáladh
+- Laghdaíonn sé go suntasach méid an chomhaid agus úsáid na cuimhne le haghaidh táblaí le réimsí móra téacs/dénártha
+
+**Cásanna úsáide:**
+- Onnmhairiú táblaí meiteashonraí le réimsí tuairisceáin
+- Obair le táblaí ina bhfuil doiciméid XML nó JSON móra
+- Díriú ar shonraí struchtúrtha agus ábhar dénártha á ligean ar neamhaird
+- Optamú feidhmíochta le haghaidh táblaí le go leor colúin mhóra
 
 ### Sampla le comhad SQL
 
@@ -237,6 +267,7 @@ vx info output.vortex
 - **Maolán sa chuimhne**: Tá taifid i maolán faoi láthair roimh scríobh (optamú sa todhchaí indéanta)
 - **Scéim seasta**: Aschruthaíthe ón gcéad taifead amháin (caithfidh taifid ina dhiaidh sin a bheith ag teacht)
 - **Slándáil**: Pasáiltear an pasfhocal mar argóint CLI (infheicthe le `ps`). Úsáid athróga timpeallachta i dtáirgeadh.
+- **Cineálacha LOB**: De réir réamhshocraithe, tá colúin LOB (CLOB, BLOB, NCLOB) san áireamh. Úsáid `--skip-lobs` chun iad a eisiamh le haghaidh feidhmíocht níos fearr agus méideanna comhaid níos lú.
 
 ## Forbairt
 

@@ -74,6 +74,7 @@ oracle2vortex \
 | `--sid` | | Oracle-SID eller tjänstnamn | (krävs) |
 | `--sqlcl-path` | | Sökväg till SQLcl körbar fil | `sql` |
 | `--auto-batch-rows` | | Antal rader per batch (0 = inaktiverad) | 0 |
+| `--skip-lobs` | | Hoppa över Oracle LOB-typer (CLOB, BLOB, NCLOB) | false |
 
 ### Auto-Batching (Stora tabeller)
 
@@ -107,6 +108,35 @@ oracle2vortex \
 Exempel: 50000 rader × 1 KB = 100 MB per batch (istället för att ladda hela tabellen)
 
 **Se även:** `BATCH_PROCESSING.md` och `README_LARGE_DATASETS.md` för mer detaljer.
+
+### Hoppa över LOB-kolumner
+
+Oracle LOB-typer (CLOB, BLOB, NCLOB) kan vara mycket stora och kanske inte behövs för analys. Använd `--skip-lobs` för att utesluta dem:
+
+```bash
+# Hoppa över LOB-kolumner för att minska filstorleken och förbättra prestanda
+oracle2vortex \
+  -f query.sql \
+  -o data.vortex \
+  --host db.example.com \
+  --port 1521 \
+  -u hr \
+  -p secret123 \
+  --sid PROD \
+  --skip-lobs
+```
+
+**Hur det fungerar:**
+- Upptäcker och filtrerar automatiskt kolumner som innehåller LOB-data
+- LOB identifieras efter storlek (> 4000 tecken) eller binära indikatorer
+- Den första loggade posten visar hur många kolumner som hoppades över
+- Minskar filstorleken och minnesanvändningen avsevärt för tabeller med stora text-/binära fält
+
+**Användningsfall:**
+- Exportera metadatatabeller med beskrivningsfält
+- Arbeta med tabeller som innehåller XML- eller stora JSON-dokument
+- Fokusera på strukturerad data samtidigt som binärt innehåll ignoreras
+- Prestandaoptimering för tabeller med många stora kolumner
 
 ### Exempel med SQL-fil
 
@@ -237,6 +267,7 @@ vx info output.vortex
 - **Minnesbuffert**: Poster buffras för närvarande före skrivning (framtida optimering möjlig)
 - **Fast schema**: Härlett endast från första posten (efterföljande poster måste matcha)
 - **Säkerhet**: Lösenord skickas som CLI-argument (synligt med `ps`). Använd miljövariabler i produktion.
+- **LOB-typer**: Som standard inkluderas LOB-kolumner (CLOB, BLOB, NCLOB). Använd `--skip-lobs` för att utesluta dem för bättre prestanda och mindre filstorlekar.
 
 ## Utveckling
 

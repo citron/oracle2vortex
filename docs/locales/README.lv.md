@@ -74,6 +74,7 @@ oracle2vortex \
 | `--sid` | | Oracle SID vai servisa nosaukums | (obligāts) |
 | `--sqlcl-path` | | Ceļš uz SQLcl izpildāmo failu | `sql` |
 | `--auto-batch-rows` | | Rindu skaits partijā (0 = atspējots) | 0 |
+| `--skip-lobs` | | Izlaist Oracle LOB tipus (CLOB, BLOB, NCLOB) | false |
 
 ### Automātiskā partiju apstrāde (lielas tabulas)
 
@@ -107,6 +108,35 @@ oracle2vortex \
 Piemērs: 50000 rindas × 1 KB = 100 MB partijā (nevis ielādējot visu tabulu)
 
 **Skatiet arī:** `BATCH_PROCESSING.md` un `README_LARGE_DATASETS.md` papildu detaļām.
+
+### LOB kolonnu izlaišana
+
+Oracle LOB tipi (CLOB, BLOB, NCLOB) var būt ļoti lieli un var nebūt nepieciešami analīzei. Izmantojiet `--skip-lobs`, lai tos izslēgtu:
+
+```bash
+# Izlaist LOB kolonnas, lai samazinātu faila izmēru un uzlabotu veiktspēju
+oracle2vortex \
+  -f query.sql \
+  -o data.vortex \
+  --host db.example.com \
+  --port 1521 \
+  -u hr \
+  -p secret123 \
+  --sid PROD \
+  --skip-lobs
+```
+
+**Kā tas darbojas:**
+- Automātiski nosaka un filtrē kolonnas, kas satur LOB datus
+- LOB tiek identificēti pēc izmēra (> 4000 rakstzīmes) vai binārajiem indikatoriem
+- Pirmais reģistrētais ieraksts parādīs, cik kolonnas tika izlaistas
+- Ievērojami samazina faila izmēru un atmiņas lietojumu tabulām ar lieliem teksta/binārajiem laukiem
+
+**Lietošanas gadījumi:**
+- Metadatu tabulu eksportēšana ar aprakstu laukiem
+- Darbs ar tabulām, kas satur XML vai lielus JSON dokumentus
+- Fokusēšanās uz strukturētiem datiem, ignorējot bināro saturu
+- Veiktspējas optimizācija tabulām ar daudzām lielām kolonnām
 
 ### Piemērs ar SQL failu
 
@@ -237,6 +267,7 @@ vx info output.vortex
 - **Buferis atmiņā**: Ieraksti pašlaik tiek buferēti pirms rakstīšanas (iespējama turpmāka optimizācija)
 - **Fiksēta shēma**: Secinēta tikai no pirmā ieraksta (nākamajiem ierakstiem jāatbilst)
 - **Drošība**: Parole tiek nodota kā CLI arguments (redzama ar `ps`). Izmantojiet vides mainīgos ražošanā.
+- **LOB tipi**: Pēc noklusējuma LOB kolonnas (CLOB, BLOB, NCLOB) ir iekļautas. Izmantojiet `--skip-lobs`, lai tās izslēgtu labākai veiktspējai un mazākiem failu izmēriem.
 
 ## Izstrāde
 

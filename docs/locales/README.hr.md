@@ -74,6 +74,7 @@ oracle2vortex \
 | `--sid` | | Oracle SID ili naziv usluge | (obavezno) |
 | `--sqlcl-path` | | Putanja do SQLcl izvršne datoteke | `sql` |
 | `--auto-batch-rows` | | Broj redaka po grupi (0 = onemogućeno) | 0 |
+| `--skip-lobs` | | Preskoči Oracle LOB tipove (CLOB, BLOB, NCLOB) | false |
 
 ### Auto-grupna obrada (velike tablice)
 
@@ -107,6 +108,35 @@ oracle2vortex \
 Primjer: 50000 redaka × 1 KB = 100 MB po grupi (umjesto učitavanja cijele tablice)
 
 **Pogledajte također:** `BATCH_PROCESSING.md` i `README_LARGE_DATASETS.md` za više detalja.
+
+### Preskakanje LOB stupaca
+
+Oracle LOB tipovi (CLOB, BLOB, NCLOB) mogu biti vrlo veliki i možda nisu potrebni za analizu. Koristite `--skip-lobs` za njihovo isključivanje:
+
+```bash
+# Preskoči LOB stupce za smanjenje veličine datoteke i poboljšanje performansi
+oracle2vortex \
+  -f query.sql \
+  -o data.vortex \
+  --host db.example.com \
+  --port 1521 \
+  -u hr \
+  -p secret123 \
+  --sid PROD \
+  --skip-lobs
+```
+
+**Kako funkcionira:**
+- Automatski detektira i filtrira stupce koji sadrže LOB podatke
+- LOB-ovi se identificiraju po veličini (> 4000 znakova) ili binarnim indikatorima
+- Prvi zabilježeni zapis će pokazati koliko je stupaca preskočeno
+- Značajno smanjuje veličinu datoteke i korištenje memorije za tablice s velikim tekstualnim/binarnim poljima
+
+**Slučajevi uporabe:**
+- Izvoz tablica metapodataka s poljima opisa
+- Rad s tablicama koje sadrže XML ili velike JSON dokumente
+- Fokusiranje na strukturirane podatke uz ignoriranje binarnog sadržaja
+- Optimizacija performansi za tablice s mnogo velikih stupaca
 
 ### Primjer s SQL datotekom
 
@@ -237,6 +267,7 @@ vx info output.vortex
 - **Buffer u memoriji**: Zapisi se trenutno spremaju u buffer prije pisanja (buduća optimizacija moguća)
 - **Fiksna shema**: Izvedena samo iz prvog zapisa (sljedeći zapisi moraju odgovarati)
 - **Sigurnost**: Lozinka se prosljeđuje kao CLI argument (vidljiva s `ps`). Koristite varijable okoline u produkciji.
+- **LOB tipovi**: Zadano, LOB stupci (CLOB, BLOB, NCLOB) su uključeni. Koristite `--skip-lobs` za njihovo isključivanje radi boljih performansi i manjih datoteka.
 
 ## Razvoj
 

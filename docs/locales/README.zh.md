@@ -74,6 +74,7 @@ oracle2vortex \
 | `--sid` | | Oracle SID 或服务名称 | (必需) |
 | `--sqlcl-path` | | SQLcl 可执行文件路径 | `sql` |
 | `--auto-batch-rows` | | 每批次的行数 (0 = 禁用) | 0 |
+| `--skip-lobs` | | 跳过 Oracle LOB 类型 (CLOB, BLOB, NCLOB) | false |
 
 ### 自动批处理 (大型表)
 
@@ -107,6 +108,35 @@ oracle2vortex \
 示例: 50000 行 × 1 KB = 每批次 100 MB (而不是加载整个表)
 
 **另请参阅:** `BATCH_PROCESSING.md` 和 `README_LARGE_DATASETS.md` 了解更多详细信息。
+
+### 跳过 LOB 列
+
+Oracle LOB 类型 (CLOB, BLOB, NCLOB) 可能非常大，并且分析时可能不需要。使用 `--skip-lobs` 排除它们:
+
+```bash
+# 跳过 LOB 列以减小文件大小并提高性能
+oracle2vortex \
+  -f query.sql \
+  -o data.vortex \
+  --host db.example.com \
+  --port 1521 \
+  -u hr \
+  -p secret123 \
+  --sid PROD \
+  --skip-lobs
+```
+
+**工作原理:**
+- 自动检测并过滤包含 LOB 数据的列
+- LOB 通过大小 (> 4000 字符) 或二进制指示符识别
+- 第一条记录的日志将显示跳过了多少列
+- 对于具有大型文本/二进制字段的表，可显著减少文件大小和内存使用量
+
+**使用案例:**
+- 导出带有描述字段的元数据表
+- 处理包含 XML 或大型 JSON 文档的表
+- 专注于结构化数据，忽略二进制内容
+- 针对具有许多大型列的表进行性能优化
 
 ### SQL 文件示例
 
@@ -237,6 +267,7 @@ vx info output.vortex
 - **内存缓冲**: 记录当前在写入前被缓冲 (未来可能优化)
 - **固定模式**: 仅从第一条记录推断 (后续记录必须匹配)
 - **安全性**: 密码作为 CLI 参数传递 (使用 `ps` 可见)。在生产环境中使用环境变量。
+- **LOB 类型**: 默认情况下，LOB 列 (CLOB, BLOB, NCLOB) 包含在内。使用 `--skip-lobs` 排除它们以获得更好的性能和更小的文件大小。
 
 ## 开发
 

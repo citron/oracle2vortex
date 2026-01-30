@@ -74,6 +74,7 @@ oracle2vortex \
 | `--sid` | | SID Oracle jew isem tas-servizz | (meħtieġ) |
 | `--sqlcl-path` | | Path għall-eżekwabbli SQLcl | `sql` |
 | `--auto-batch-rows` | | Numru ta' ringiela għal kull batch (0 = diżattivat) | 0 |
+| `--skip-lobs` | | Aqbeż tipi LOB Oracle (CLOB, BLOB, NCLOB) | false |
 
 ### Auto-batching (tabelli kbar)
 
@@ -107,6 +108,35 @@ oracle2vortex \
 Eżempju: 50000 ringiela × 1 KB = 100 MB għal kull batch (minflok ma ttella' t-tabella kollha)
 
 **Ara wkoll:** `BATCH_PROCESSING.md` u `README_LARGE_DATASETS.md` għal aktar dettalji.
+
+### Aqbeż kolonni LOB
+
+Tipi LOB Oracle (CLOB, BLOB, NCLOB) jistgħu jkunu kbar ħafna u jista' jkun li mhumiex meħtieġa għall-analiżi. Uża `--skip-lobs` biex teskludi huma:
+
+```bash
+# Aqbeż kolonni LOB biex tnaqqas id-daqs tal-fajl u ttejjeb il-prestazzjoni
+oracle2vortex \
+  -f query.sql \
+  -o data.vortex \
+  --host db.example.com \
+  --port 1521 \
+  -u hr \
+  -p secret123 \
+  --sid PROD \
+  --skip-lobs
+```
+
+**Kif jaħdem:**
+- Awtomatikament jiskopri u jiffiltra kolonni li fihom data LOB
+- LOBs huma identifikati bid-daqs (> 4000 karattru) jew indikaturi binari
+- L-ewwel rekord irreġistrat se juri kemm kolonni ġew maqbuża
+- Jnaqqas b'mod sinifikanti d-daqs tal-fajl u l-użu tal-memorja għal tabelli b'oqsma kbar ta' test/binarji
+
+**Każijiet ta' użu:**
+- Esportazzjoni ta' tabelli metadata b'oqsma ta' deskrizzjoni
+- Ħidma ma' tabelli li fihom dokumenti XML jew JSON kbar
+- Iffoka fuq data strutturat filwaqt li tinjora kontenut binarju
+- Ottimizzazzjoni tal-prestazzjoni għal tabelli b'ħafna kolonni kbar
 
 ### Eżempju b'fajl SQL
 
@@ -237,6 +267,7 @@ vx info output.vortex
 - **Buffer fil-memorja**: Records bħalissa huma buffered qabel il-kitba (ottimizzazzjoni futura possibbli)
 - **Skema fissa**: Inferita biss mill-ewwel record (records li jmiss għandhom jaqblu)
 - **Sigurtà**: Il-password tgħaddi bħala argument CLI (viżibbli b'`ps`). Uża varjabbli tal-ambjent fil-produzzjoni.
+- **Tipi LOB**: B'mod default, kolonni LOB (CLOB, BLOB, NCLOB) huma inklużi. Uża `--skip-lobs` biex teskludi huma għal prestazzjoni aħjar u daqsijiet tal-fajl iżgħar.
 
 ## Żvilupp
 

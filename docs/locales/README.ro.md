@@ -74,6 +74,7 @@ oracle2vortex \
 | `--sid` | | SID sau nume de serviciu Oracle | (obligatoriu) |
 | `--sqlcl-path` | | Calea către executabilul SQLcl | `sql` |
 | `--auto-batch-rows` | | Număr de rânduri pe lot (0 = dezactivat) | 0 |
+| `--skip-lobs` | | Omite tipurile LOB Oracle (CLOB, BLOB, NCLOB) | false |
 
 ### Auto-procesare pe loturi (tabele mari)
 
@@ -107,6 +108,35 @@ oracle2vortex \
 Exemplu: 50000 rânduri × 1 KB = 100 MB per lot (în loc de încărcarea întregului tabel)
 
 **Vezi și:** `BATCH_PROCESSING.md` și `README_LARGE_DATASETS.md` pentru mai multe detalii.
+
+### Omiterea coloanelor LOB
+
+Tipurile LOB Oracle (CLOB, BLOB, NCLOB) pot fi foarte mari și pot să nu fie necesare pentru analiză. Folosiți `--skip-lobs` pentru a le exclude:
+
+```bash
+# Omite coloanele LOB pentru a reduce dimensiunea fișierului și a îmbunătăți performanța
+oracle2vortex \
+  -f query.sql \
+  -o data.vortex \
+  --host db.example.com \
+  --port 1521 \
+  -u hr \
+  -p secret123 \
+  --sid PROD \
+  --skip-lobs
+```
+
+**Cum funcționează:**
+- Detectează și filtrează automat coloanele care conțin date LOB
+- LOB-urile sunt identificate după dimensiune (> 4000 caractere) sau indicatori binari
+- Primul înregistrare jurnalizată va arăta câte coloane au fost omise
+- Reduce semnificativ dimensiunea fișierului și utilizarea memoriei pentru tabelele cu câmpuri text/binare mari
+
+**Cazuri de utilizare:**
+- Exportarea tabelelor de metadate cu câmpuri de descriere
+- Lucrul cu tabele care conțin documente XML sau JSON mari
+- Concentrarea pe date structurate ignorând conținutul binar
+- Optimizarea performanței pentru tabele cu multe coloane mari
 
 ### Exemplu cu fișier SQL
 
@@ -237,6 +267,7 @@ vx info output.vortex
 - **Buffer în memorie**: Înregistrările sunt în prezent bufferizate înainte de scriere (optimizare viitoare posibilă)
 - **Schemă fixă**: Inferată doar din prima înregistrare (înregistrările următoare trebuie să corespundă)
 - **Securitate**: Parola este trecută ca argument CLI (vizibilă cu `ps`). Utilizați variabile de mediu în producție.
+- **Tipuri LOB**: În mod implicit, coloanele LOB (CLOB, BLOB, NCLOB) sunt incluse. Folosiți `--skip-lobs` pentru a le exclude pentru performanță mai bună și fișiere mai mici.
 
 ## Dezvoltare
 

@@ -74,6 +74,7 @@ oracle2vortex \
 | `--sid` | | Oracle-SID eller servicenavn | (påkrævet) |
 | `--sqlcl-path` | | Sti til SQLcl eksekverbar fil | `sql` |
 | `--auto-batch-rows` | | Antal rækker pr. batch (0 = deaktiveret) | 0 |
+| `--skip-lobs` | | Spring Oracle LOB-typer over (CLOB, BLOB, NCLOB) | false |
 
 ### Auto-Batching (Store tabeller)
 
@@ -107,6 +108,35 @@ oracle2vortex \
 Eksempel: 50000 rækker × 1 KB = 100 MB pr. batch (i stedet for at indlæse hele tabellen)
 
 **Se også:** `BATCH_PROCESSING.md` og `README_LARGE_DATASETS.md` for flere detaljer.
+
+### Spring LOB-kolonner over
+
+Oracle LOB-typer (CLOB, BLOB, NCLOB) kan være meget store og er måske ikke nødvendige til analyse. Brug `--skip-lobs` for at udelukke dem:
+
+```bash
+# Spring LOB-kolonner over for at reducere filstørrelsen og forbedre ydeevnen
+oracle2vortex \
+  -f query.sql \
+  -o data.vortex \
+  --host db.example.com \
+  --port 1521 \
+  -u hr \
+  -p secret123 \
+  --sid PROD \
+  --skip-lobs
+```
+
+**Sådan virker det:**
+- Opdager og filtrerer automatisk kolonner indeholdende LOB-data
+- LOB'er identificeres efter størrelse (> 4000 tegn) eller binære indikatorer
+- Den første loggede post vil vise hvor mange kolonner der blev sprunget over
+- Reducerer filstørrelsen og hukommelsesforbruget betydeligt for tabeller med store tekst-/binære felter
+
+**Anvendelsestilfælde:**
+- Eksport af metadatatabeller med beskrivelsesfelt
+- Arbejde med tabeller indeholdende XML- eller store JSON-dokumenter
+- Fokusere på strukturerede data mens binært indhold ignoreres
+- Ydeevneoptimering for tabeller med mange store kolonner
 
 ### Eksempel med SQL-fil
 
@@ -237,6 +267,7 @@ vx info output.vortex
 - **In-memory buffer**: Poster bufres i øjeblikket før skrivning (fremtidig optimering mulig)
 - **Fast skema**: Udledt kun fra den første post (efterfølgende poster skal matche)
 - **Sikkerhed**: Adgangskode videregives som CLI-argument (synlig med `ps`). Brug miljøvariabler i produktion.
+- **LOB-typer**: Som standard inkluderes LOB-kolonner (CLOB, BLOB, NCLOB). Brug `--skip-lobs` for at udelukke dem for bedre ydeevne og mindre filstørrelser.
 
 ## Udvikling
 

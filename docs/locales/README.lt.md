@@ -74,6 +74,7 @@ oracle2vortex \
 | `--sid` | | Oracle SID arba paslaugos pavadinimas | (privalomas) |
 | `--sqlcl-path` | | Kelias į SQLcl vykdomąjį failą | `sql` |
 | `--auto-batch-rows` | | Eilučių skaičius partijoje (0 = išjungta) | 0 |
+| `--skip-lobs` | | Praleisti Oracle LOB tipus (CLOB, BLOB, NCLOB) | false |
 
 ### Automatinis partijinis apdorojimas (didelės lentelės)
 
@@ -107,6 +108,35 @@ oracle2vortex \
 Pavyzdys: 50000 eilučių × 1 KB = 100 MB partijai (vietoj visos lentelės įkėlimo)
 
 **Taip pat žiūrėkite:** `BATCH_PROCESSING.md` ir `README_LARGE_DATASETS.md` daugiau detalių.
+
+### LOB stulpelių praleidimas
+
+Oracle LOB tipai (CLOB, BLOB, NCLOB) gali būti labai dideli ir gali nebūti reikalingi analizei. Naudokite `--skip-lobs`, kad juos išskirtumėte:
+
+```bash
+# Praleisti LOB stulpelius, kad sumažintumėte failo dydį ir pagerinti našumą
+oracle2vortex \
+  -f query.sql \
+  -o data.vortex \
+  --host db.example.com \
+  --port 1521 \
+  -u hr \
+  -p secret123 \
+  --sid PROD \
+  --skip-lobs
+```
+
+**Kaip tai veikia:**
+- Automatiškai aptinka ir filtruoja stulpelius, kuriuose yra LOB duomenų
+- LOB identifikuojami pagal dydį (> 4000 simbolių) arba dvejetainius indikatorius
+- Pirmas užregistruotas įrašas parodys, kiek stulpelių buvo praleista
+- Žymiai sumažina failo dydį ir atminties naudojimą lentelėms su dideliais teksto/dvejetainiais laukais
+
+**Naudojimo atvejai:**
+- Metaduomenų lentelių eksportavimas su aprašymo laukais
+- Darbas su lentelėmis, kuriose yra XML ar dideli JSON dokumentai
+- Dėmesio sutelkimas į struktūrinius duomenis ignoruojant dvejetainį turinį
+- Našumo optimizavimas lentelėms su daug didelių stulpelių
 
 ### Pavyzdys su SQL failu
 
@@ -237,6 +267,7 @@ vx info output.vortex
 - **Buferis atmintyje**: Įrašai šiuo metu buferizuojami prieš rašymą (galima būsima optimizacija)
 - **Fiksuota schema**: Išvesta tik iš pirmo įrašo (tolesni įrašai turi atitikti)
 - **Saugumas**: Slaptažodis perduodamas kaip CLI argumentas (matomas su `ps`). Gamyboje naudokite aplinkos kintamuosius.
+- **LOB tipai**: Pagal numatytuosius nustatymus LOB stulpeliai (CLOB, BLOB, NCLOB) įtraukti. Naudokite `--skip-lobs`, kad juos išskirtumėte geresniam našumui ir mažesniems failų dydžiams.
 
 ## Kūrimas
 

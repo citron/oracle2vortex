@@ -74,6 +74,7 @@ oracle2vortex \
 | `--sid` | | Oracle SID nebo název služby | (povinné) |
 | `--sqlcl-path` | | Cesta ke spustitelnému SQLcl | `sql` |
 | `--auto-batch-rows` | | Počet řádků na dávku (0 = vypnuto) | 0 |
+| `--skip-lobs` | | Přeskočit Oracle LOB typy (CLOB, BLOB, NCLOB) | false |
 
 ### Auto-dávkování (velké tabulky)
 
@@ -107,6 +108,35 @@ oracle2vortex \
 Příklad: 50000 řádků × 1 KB = 100 MB na dávku (místo načtení celé tabulky)
 
 **Viz také:** `BATCH_PROCESSING.md` a `README_LARGE_DATASETS.md` pro další detaily.
+
+### Přeskočení LOB sloupců
+
+Oracle LOB typy (CLOB, BLOB, NCLOB) mohou být velmi velké a nemusí být nutné pro analýzu. Použijte `--skip-lobs` k jejich vyloučení:
+
+```bash
+# Přeskočit LOB sloupce pro snížení velikosti souboru a zlepšení výkonu
+oracle2vortex \
+  -f query.sql \
+  -o data.vortex \
+  --host db.example.com \
+  --port 1521 \
+  -u hr \
+  -p secret123 \
+  --sid PROD \
+  --skip-lobs
+```
+
+**Jak to funguje:**
+- Automaticky detekuje a filtruje sloupce obsahující LOB data
+- LOB jsou identifikovány podle velikosti (> 4000 znaků) nebo binárních indikátorů
+- První zaznamenaný záznam zobrazí, kolik sloupců bylo přeskočeno
+- Výrazně snižuje velikost souboru a využití paměti u tabulek s velkými textovými/binárními poli
+
+**Případy použití:**
+- Export tabulek metadat s poli popisu
+- Práce s tabulkami obsahujícími XML nebo velké JSON dokumenty
+- Zaměření na strukturovaná data s ignorováním binárního obsahu
+- Optimalizace výkonu pro tabulky s mnoha velkými sloupci
 
 ### Příklad s SQL souborem
 
@@ -237,6 +267,7 @@ vx info output.vortex
 - **Buffer v paměti**: Záznamy jsou aktuálně bufferovány před zápisem (budoucí optimalizace možná)
 - **Pevné schéma**: Odvozeno pouze z prvního záznamu (následující záznamy musí odpovídat)
 - **Bezpečnost**: Heslo je předáno jako CLI argument (viditelné pomocí `ps`). V produkci používejte proměnné prostředí.
+- **LOB typy**: Ve výchozím nastavení jsou LOB sloupce (CLOB, BLOB, NCLOB) zahrnuty. Použijte `--skip-lobs` k jejich vyloučení pro lepší výkon a menší velikosti souborů.
 
 ## Vývoj
 
