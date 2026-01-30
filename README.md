@@ -1,23 +1,26 @@
 # oracle2vortex
 
-Une application CLI qui extrait des tables Oracle vers le format Vortex via SQLcl avec streaming JSON.
+> 🌍 **Available in 26 languages** - See [docs/TRANSLATIONS.md](docs/TRANSLATIONS.md) for all translations  
+> 📖 **Read this in:** [FR](docs/locales/README.fr.md) | [DE](docs/locales/README.de.md) | [ES](docs/locales/README.es.md) | [IT](docs/locales/README.it.md) | [ZH](docs/locales/README.zh.md) | [+21 more](docs/TRANSLATIONS.md)
+
+A CLI application that extracts Oracle tables to Vortex format via SQLcl with JSON streaming.
 
 ## Description
 
-`oracle2vortex` permet d'exporter des données Oracle en utilisant :
-- **SQLcl** pour la connexion et l'export natif en JSON
-- **Streaming** pour traiter les données à la volée sans attendre la fin de l'export
-- **Conversion automatique** vers le format Vortex columnaire avec inférence de schéma
+`oracle2vortex` allows exporting Oracle data using:
+- **SQLcl** for connection and native JSON export
+- **Streaming** to process data on-the-fly without waiting for export completion
+- **Automatic conversion** to columnar Vortex format with schema inference
 
-✅ **Projet terminé et testé en production** - Validé avec une table de 417 colonnes sur base réelle.
+✅ **Project completed and tested in production** - Validated with a 417-column table on a real database.
 
-## Prérequis
+## Prerequisites
 
-- **Rust nightly** (requis par les crates Vortex)
-- **SQLcl** installé (ou spécifier le chemin avec `--sqlcl-path`)
-- Une base de données Oracle accessible
+- **Rust nightly** (required by Vortex crates)
+- **SQLcl** installed (or specify path with `--sqlcl-path`)
+- An accessible Oracle database
 
-### Installation de Rust nightly
+### Installing Rust nightly
 
 ```bash
 rustup install nightly
@@ -25,13 +28,13 @@ cd oracle2vortex
 rustup override set nightly
 ```
 
-### Installation de SQLcl
+### Installing SQLcl
 
-Télécharger SQLcl depuis : https://www.oracle.com/database/sqldeveloper/technologies/sqlcl/
+Download SQLcl from: https://www.oracle.com/database/sqldeveloper/technologies/sqlcl/
 
-Ou sur Linux :
+Or on Linux:
 ```bash
-# Exemple pour installer dans /opt/oracle/sqlcl/
+# Example for installing in /opt/oracle/sqlcl/
 wget https://download.oracle.com/otn_software/java/sqldeveloper/sqlcl-latest.zip
 unzip sqlcl-latest.zip -d /opt/oracle/
 ```
@@ -44,11 +47,11 @@ cd oracle2vortex
 cargo build --release
 ```
 
-L'exécutable sera disponible dans `target/release/oracle2vortex`.
+The executable will be available in `target/release/oracle2vortex`.
 
-## Utilisation
+## Usage
 
-### Syntaxe de base
+### Basic syntax
 
 ```bash
 oracle2vortex \
@@ -63,24 +66,24 @@ oracle2vortex \
 
 ### Options
 
-| Option | Courte | Description | Défaut |
-|--------|--------|-------------|--------|
-| `--sql-file` | `-f` | Chemin vers le fichier SQL contenant la requête | (requis) |
-| `--output` | `-o` | Chemin du fichier Vortex de sortie | (requis) |
-| `--host` | | Hôte Oracle | (requis) |
-| `--port` | | Port Oracle | 1521 |
-| `--user` | `-u` | Utilisateur Oracle | (requis) |
-| `--password` | `-p` | Mot de passe Oracle | (requis) |
-| `--sid` | | SID ou nom de service Oracle | (requis) |
-| `--sqlcl-path` | | Chemin vers l'exécutable SQLcl | `sql` |
-| `--auto-batch-rows` | | Nombre de lignes par lot (0 = désactivé) | 0 |
+| Option | Short | Description | Default |
+|--------|-------|-------------|---------|
+| `--sql-file` | `-f` | Path to SQL file containing the query | (required) |
+| `--output` | `-o` | Output Vortex file path | (required) |
+| `--host` | | Oracle host | (required) |
+| `--port` | | Oracle port | 1521 |
+| `--user` | `-u` | Oracle user | (required) |
+| `--password` | `-p` | Oracle password | (required) |
+| `--sid` | | Oracle SID or service name | (required) |
+| `--sqlcl-path` | | Path to SQLcl executable | `sql` |
+| `--auto-batch-rows` | | Number of rows per batch (0 = disabled) | 0 |
 
-### Auto-Batching (Grandes Tables)
+### Auto-Batching (Large Tables)
 
-Pour traiter des tables avec des millions ou milliards de lignes avec une utilisation mémoire constante, utilisez l'option `--auto-batch-rows` :
+To process tables with millions or billions of rows with constant memory usage, use the `--auto-batch-rows` option:
 
 ```bash
-# Traiter par lots de 50000 lignes
+# Process in batches of 50000 rows
 oracle2vortex \
   -f query.sql \
   -o data.vortex \
@@ -92,25 +95,25 @@ oracle2vortex \
   --auto-batch-rows 50000
 ```
 
-**Comment ça fonctionne :**
-1. Enveloppe automatiquement votre requête avec `OFFSET/FETCH`
-2. Exécute SQLcl plusieurs fois (une fois par lot)
-3. Accumule tous les résultats en mémoire
-4. Écrit un seul fichier Vortex contenant toutes les données
+**How it works:**
+1. Automatically wraps your query with `OFFSET/FETCH`
+2. Executes SQLcl multiple times (once per batch)
+3. Accumulates all results in memory
+4. Writes a single Vortex file containing all data
 
-**Limites :**
-- Nécessite Oracle 12c+ (syntaxe OFFSET/FETCH)
-- Votre requête ne doit PAS déjà contenir OFFSET/FETCH ou ROWNUM
-- Recommandé : ajouter ORDER BY pour un ordre cohérent
+**Limitations:**
+- Requires Oracle 12c+ (OFFSET/FETCH syntax)
+- Your query must NOT already contain OFFSET/FETCH or ROWNUM
+- Recommended: add ORDER BY for consistent ordering
 
-**Mémoire :** Avec auto-batching, la mémoire utilisée = taille d'un lot × 2 (JSON + Vortex)  
-Exemple : 50000 lignes × 1 KB = 100 MB par lot (au lieu de charger toute la table)
+**Memory:** With auto-batching, memory used = batch size × 2 (JSON + Vortex)  
+Example: 50000 rows × 1 KB = 100 MB per batch (instead of loading the entire table)
 
-**Voir aussi :** `BATCH_PROCESSING.md` et `README_LARGE_DATASETS.md` pour plus de détails.
+**See also:** `BATCH_PROCESSING.md` and `README_LARGE_DATASETS.md` for more details.
 
-### Exemple avec fichier SQL
+### Example with SQL file
 
-Créez un fichier `query.sql` :
+Create a `query.sql` file:
 
 ```sql
 SELECT 
@@ -123,7 +126,7 @@ FROM employees
 WHERE department_id = 50;
 ```
 
-Puis exécutez :
+Then execute:
 
 ```bash
 oracle2vortex \
@@ -140,8 +143,8 @@ oracle2vortex \
 
 ```
 ┌─────────────┐
-│  Fichier    │
-│  SQL        │
+│  SQL File   │
+│             │
 └──────┬──────┘
        │
        v
@@ -171,88 +174,88 @@ oracle2vortex \
            │ Vortex format
            v
 ┌──────────────────────────┐
-│  Fichier .vortex         │
+│  .vortex File            │
 │  (columnar binary)       │
 └──────────────────────────┘
 ```
 
-## Fonctionnement
+## How it works
 
-1. **Lecture SQL** : Le fichier SQL est chargé en mémoire
-2. **Lancement SQLcl** : Démarrage du process avec connexion Oracle
-3. **Configuration session** :
-   - `SET SQLFORMAT JSON` pour export JSON
-   - `SET NLS_NUMERIC_CHARACTERS='.,';` pour éviter les problèmes de locale
-4. **Exécution requête** : La requête SQL est envoyée via stdin
-5. **Capture sortie** : Lecture complète du stdout JSON
-6. **Extraction JSON** : Isolation de la structure `{"results":[{"items":[...]}]}`
-7. **Inférence schéma** : Le schéma Vortex est déduit automatiquement du premier record
-8. **Conversion records** : Chaque objet JSON est transformé en colonnes Vortex
-9. **Écriture fichier** : Fichier Vortex binaire créé avec session Tokio
+1. **SQL Reading**: The SQL file is loaded into memory
+2. **SQLcl Launch**: Process starts with Oracle connection
+3. **Session configuration**:
+   - `SET SQLFORMAT JSON` for JSON export
+   - `SET NLS_NUMERIC_CHARACTERS='.,';` to avoid locale issues
+4. **Query execution**: The SQL query is sent via stdin
+5. **Output capture**: Complete reading of JSON stdout
+6. **JSON extraction**: Isolation of the `{"results":[{"items":[...]}]}` structure
+7. **Schema inference**: The Vortex schema is automatically deduced from the first record
+8. **Record conversion**: Each JSON object is transformed into Vortex columns
+9. **File writing**: Binary Vortex file created with Tokio session
 
-## Types de données supportés
+## Supported data types
 
-La conversion des types JSON vers Vortex se fait automatiquement :
+JSON to Vortex type conversion is automatic:
 
-| Type JSON | Type Vortex | Nullable | Notes |
+| JSON Type | Vortex Type | Nullable | Notes |
 |-----------|-------------|----------|-------|
-| `null` | `Utf8` | ✅ | Déduit comme string nullable |
+| `null` | `Utf8` | ✅ | Inferred as nullable string |
 | `boolean` | `Bool` | ✅ | Via BoolArray |
-| `number` (entier) | `Primitive(I64)` | ✅ | Détecté avec `is_f64() == false` |
-| `number` (float) | `Primitive(F64)` | ✅ | Détecté avec `is_f64() == true` |
+| `number` (integer) | `Primitive(I64)` | ✅ | Detected with `is_f64() == false` |
+| `number` (float) | `Primitive(F64)` | ✅ | Detected with `is_f64() == true` |
 | `string` | `Utf8` | ✅ | Via VarBinArray |
-| `array` | `Utf8` | ✅ | Sérialisé comme string JSON |
-| `object` | `Utf8` | ✅ | Sérialisé comme string JSON |
+| `array` | `Utf8` | ✅ | Serialized as JSON string |
+| `object` | `Utf8` | ✅ | Serialized as JSON string |
 
-**Note** : Tous les types sont nullable pour gérer les valeurs Oracle NULL.
+**Note**: All types are nullable to handle Oracle NULL values.
 
-## Logs et débogage
+## Logging and debugging
 
-L'application utilise `tracing` pour les logs. Les messages sont affichés sur stderr avec le niveau de log.
+The application uses `tracing` for logs. Messages are displayed on stderr with log level.
 
-Les logs incluent :
-- Connexion à Oracle
-- Nombre d'enregistrements traités
-- Schéma inféré
-- Erreurs et avertissements
+Logs include:
+- Oracle connection
+- Number of processed records
+- Inferred schema
+- Errors and warnings
 
-## Vérification des fichiers Vortex générés
+## Verifying generated Vortex files
 
-Pour vérifier les fichiers générés, utilisez l'outil `vx` :
+To verify generated files, use the `vx` tool:
 
 ```bash
-# Installation de vx (outil Vortex CLI)
+# Install vx (Vortex CLI tool)
 cargo install vortex-vx
 
-# Explorer un fichier Vortex
+# Browse a Vortex file
 vx browse output.vortex
 
-# Afficher les métadonnées
+# Display metadata
 vx info output.vortex
 ```
 
-## Limitations et considérations
+## Limitations and considerations
 
-- **Types complexes** : Les objets JSON imbriqués et les tableaux sont sérialisés en chaînes
-- **Buffer en mémoire** : Les records sont actuellement bufferisés avant écriture (optimisation future possible)
-- **Schéma fixe** : Inféré du premier record uniquement (les records suivants doivent correspondre)
-- **Sécurité** : Le mot de passe est passé en argument CLI (visible avec `ps`). Utiliser des variables d'environnement en production.
+- **Complex types**: Nested JSON objects and arrays are serialized to strings
+- **In-memory buffer**: Records are currently buffered before writing (future optimization possible)
+- **Fixed schema**: Inferred from first record only (subsequent records must match)
+- **Security**: Password is passed as CLI argument (visible with `ps`). Use environment variables in production.
 
-## Développement
+## Development
 
-### Build en mode debug
+### Debug build
 
 ```bash
 cargo build
 ```
 
-### Build en mode release
+### Release build
 
 ```bash
 cargo build --release
 ```
 
-Le binaire sera dans `target/release/oracle2vortex` (~46 MB en release).
+The binary will be in `target/release/oracle2vortex` (~46 MB in release).
 
 ### Tests
 
@@ -260,15 +263,15 @@ Le binaire sera dans `target/release/oracle2vortex` (~46 MB en release).
 cargo test
 ```
 
-### Tests manuels
+### Manual tests
 
-Les fichiers de test avec credentials sont dans `tests_local/` (gitignored) :
+Test files with credentials are in `tests_local/` (gitignored):
 
 ```bash
-# Créer des requêtes de test
+# Create test queries
 echo "SELECT * FROM my_table WHERE ROWNUM <= 10;" > tests_local/test.sql
 
-# Exécuter
+# Execute
 ./target/release/oracle2vortex \
   -f tests_local/test.sql \
   -o tests_local/output.vortex \
@@ -279,53 +282,53 @@ echo "SELECT * FROM my_table WHERE ROWNUM <= 10;" > tests_local/test.sql
   --sid MYSID
 ```
 
-## Licence
+## License
 
 Copyright (c) 2026 William Gacquer
 
-Ce projet est sous licence EUPL-1.2 (European Union Public Licence v. 1.2).
+This project is licensed under EUPL-1.2 (European Union Public Licence v. 1.2).
 
-**IMPORTANT - Restriction d'usage commercial :**  
-L'utilisation commerciale de ce logiciel est interdite sans accord écrit préalable avec l'auteur.  
-Pour toute demande de licence commerciale, veuillez contacter : **oracle2vortex@amilto.com**
+**IMPORTANT - Commercial use restriction:**  
+Commercial use of this software is prohibited without prior written agreement with the author.  
+For any commercial license request, please contact: **oracle2vortex@amilto.com**
 
-Voir le fichier [LICENSE](LICENSE) pour le texte complet de la licence.
+See the [LICENSE](LICENSE) file for the complete license text.
 
-## Auteur
+## Author
 
 **William Gacquer**  
-Contact : oracle2vortex@amilto.com
+Contact: oracle2vortex@amilto.com
 
-## Historique des tests
+## Test history
 
-Le projet a été validé sur une base Oracle de production :
+The project has been validated on a production Oracle database:
 
-- ✅ **Test simple** : 10 records, 3 colonnes → 5.5 KB
-- ✅ **Test complexe** : 100 records, 417 colonnes → 1.3 MB
-- ✅ **Validation** : Fichiers lisibles avec `vx browse` (Vortex v0.58)
+- ✅ **Simple test**: 10 records, 3 columns → 5.5 KB
+- ✅ **Complex test**: 100 records, 417 columns → 1.3 MB
+- ✅ **Validation**: Files readable with `vx browse` (Vortex v0.58)
 
-## Structure du projet
+## Project structure
 
 ```
 oracle2vortex/
 ├── Cargo.toml              # 11 dependencies (vortex 0.58, tokio, clap, etc.)
-├── README.md               # Ce fichier
-├── IMPLEMENTATION.md       # Documentation technique
-├── .gitignore             # Exclut tests_local/ et credentials
+├── README.md               # This file
+├── IMPLEMENTATION.md       # Technical documentation
+├── .gitignore             # Excludes tests_local/ and credentials
 ├── src/
-│   ├── main.rs            # Entry point avec runtime tokio
-│   ├── cli.rs             # Parsing arguments Clap
-│   ├── sqlcl.rs           # Process SQLcl avec CONNECT
+│   ├── main.rs            # Entry point with tokio runtime
+│   ├── cli.rs             # Clap argument parsing
+│   ├── sqlcl.rs           # SQLcl process with CONNECT
 │   ├── json_stream.rs     # Parser {"results":[...]}
-│   ├── vortex_writer.rs   # Conversion JSON→Vortex (API 0.58)
-│   └── pipeline.rs        # Orchestration complète
+│   ├── vortex_writer.rs   # JSON→Vortex conversion (API 0.58)
+│   └── pipeline.rs        # Complete orchestration
 ├── examples/
 │   ├── README.md
-│   └── sample_query.sql   # Exemple de requête
-└── tests_local/           # Tests avec credentials (gitignored)
+│   └── sample_query.sql   # Sample query
+└── tests_local/           # Tests with credentials (gitignored)
 ```
 
-## Dépendances principales
+## Main dependencies
 
 - **vortex-array, vortex-dtype, vortex-buffer, vortex-file, vortex-session, vortex-io** v0.58
 - **tokio** v1.40 (async runtime)
@@ -333,7 +336,7 @@ oracle2vortex/
 - **serde_json** v1.0 (JSON parsing)
 - **anyhow** v1.0 (error handling)
 
-## Ressources
+## Resources
 
 - [SQLcl Documentation](https://docs.oracle.com/en/database/oracle/sql-developer-command-line/)
 - [Vortex Format](https://github.com/spiraldb/vortex)
