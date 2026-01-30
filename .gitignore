@@ -1,0 +1,17 @@
+/target
+Cargo.lock
+*.vortex
+*.log
+.DS_Store
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+# Test files with credentials (DO NOT COMMIT)
+test_*.sql
+*_test.sql
+.env
+*.credentials
+
+tests_local/
