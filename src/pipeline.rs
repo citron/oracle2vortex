@@ -10,14 +10,16 @@ pub struct Pipeline {
     config: SqlclConfig,
     batch_size: usize,
     auto_batch_rows: usize,
+    skip_lobs: bool,
 }
 
 impl Pipeline {
-    pub fn new(config: SqlclConfig, batch_size: usize, auto_batch_rows: usize) -> Self {
+    pub fn new(config: SqlclConfig, batch_size: usize, auto_batch_rows: usize, skip_lobs: bool) -> Self {
         Self { 
             config, 
             batch_size,
             auto_batch_rows,
+            skip_lobs,
         }
     }
 
@@ -98,7 +100,7 @@ impl Pipeline {
         tracing::info!("Loaded {} records from SQLcl", records.len());
 
         // Create Vortex writer
-        let mut vortex_writer = VortexWriter::new();
+        let mut vortex_writer = VortexWriter::new(self.skip_lobs);
 
         // Process records
         let mut count = 0;
@@ -137,7 +139,7 @@ impl Pipeline {
         tracing::info!("Batch size: {} rows per query", self.auto_batch_rows);
 
         // Create Vortex writer for all batches
-        let mut vortex_writer = VortexWriter::new();
+        let mut vortex_writer = VortexWriter::new(self.skip_lobs);
         let mut total_count = 0;
         let mut batch_num = 0;
         let mut offset = 0;

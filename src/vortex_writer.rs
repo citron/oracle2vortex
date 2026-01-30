@@ -13,24 +13,72 @@ use vortex_session::VortexSession;
 pub struct VortexWriter {
     field_order: Vec<String>,
     records: Vec<Value>,
+    skip_lobs: bool,
 }
 
 impl VortexWriter {
-    pub fn new() -> Self {
+    pub fn new(skip_lobs: bool) -> Self {
         Self {
             field_order: Vec::new(),
             records: Vec::new(),
+            skip_lobs,
+        }
+    }
+
+    /// Check if a column value appears to be a LOB type based on heuristics
+    /// Oracle LOBs in JSON export can be very long strings or have specific patterns
+    fn is_likely_lob(value: &Value) -> bool {
+        match value {
+            Value::String(s) => {
+                // LOBs are often very long strings (> 4000 chars is typical indicator)
+                // Or they contain binary data indicators
+                s.len() > 4000 || s.starts_with("HEXTORAW")
+            }
+            _ => false,
+        }
+    }
+
+    /// Filter out LOB columns from a record
+    fn filter_lobs(&self, record: &Value) -> Value {
+        if !self.skip_lobs {
+            return record.clone();
+        }
+
+        if let Some(obj) = record.as_object() {
+            let filtered: serde_json::Map<String, Value> = obj
+                .iter()
+                .filter(|(_, v)| !Self::is_likely_lob(v))
+                .map(|(k, v)| (k.clone(), v.clone()))
+                .collect();
+            Value::Object(filtered)
+        } else {
+            record.clone()
         }
     }
 
     pub async fn add_record(&mut self, record: Value) -> Result<()> {
+        // Filter LOBs if skip_lobs is enabled
+        let filtered_record = self.filter_lobs(&record);
+        
         if self.field_order.is_empty() {
-            if let Some(obj) = record.as_object() {
+            if let Some(obj) = filtered_record.as_object() {
                 self.field_order = obj.keys().cloned().collect();
+                
+                if self.skip_lobs {
+                    let original_count = record.as_object().map(|o| o.len()).unwrap_or(0);
+                    let filtered_count = obj.len();
+                    if original_count > filtered_count {
+                        tracing::info!(
+                            "Skipping {} LOB columns (keeping {} columns)",
+                            original_count - filtered_count,
+                            filtered_count
+                        );
+                    }
+                }
             }
         }
         
-        self.records.push(record);
+        self.records.push(filtered_record);
         Ok(())
     }
 

@@ -39,6 +39,10 @@ async fn main() -> Result<()> {
             tracing::warn!("--batch-size parameter not used in single-query mode");
         }
     }
+    
+    if args.skip_lobs {
+        tracing::info!("LOB filtering: ENABLED (CLOB, BLOB, NCLOB columns will be skipped)");
+    }
 
     // Create SQLcl configuration
     let config = SqlclConfig {
@@ -51,7 +55,7 @@ async fn main() -> Result<()> {
     };
 
     // Create and run pipeline
-    let pipeline = Pipeline::new(config, args.batch_size, args.auto_batch_rows);
+    let pipeline = Pipeline::new(config, args.batch_size, args.auto_batch_rows, args.skip_lobs);
     pipeline.run(&args.sql_file, &args.output).await?;
 
     tracing::info!("Successfully completed");

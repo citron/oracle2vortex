@@ -77,6 +77,7 @@ oracle2vortex \
 | `--sid` | | Oracle SID or service name | (required) |
 | `--sqlcl-path` | | Path to SQLcl executable | `sql` |
 | `--auto-batch-rows` | | Number of rows per batch (0 = disabled) | 0 |
+| `--skip-lobs` | | Skip Oracle LOB types (CLOB, BLOB, NCLOB) | false |
 
 ### Auto-Batching (Large Tables)
 
@@ -110,6 +111,35 @@ oracle2vortex \
 Example: 50000 rows × 1 KB = 100 MB per batch (instead of loading the entire table)
 
 **See also:** `BATCH_PROCESSING.md` and `README_LARGE_DATASETS.md` for more details.
+
+### Skipping LOB Columns
+
+Oracle LOB types (CLOB, BLOB, NCLOB) can be very large and may not be needed for analysis. Use `--skip-lobs` to exclude them:
+
+```bash
+# Skip LOB columns to reduce file size and improve performance
+oracle2vortex \
+  -f query.sql \
+  -o data.vortex \
+  --host db.example.com \
+  --port 1521 \
+  -u hr \
+  -p secret123 \
+  --sid PROD \
+  --skip-lobs
+```
+
+**How it works:**
+- Automatically detects and filters out columns containing LOB data
+- LOBs are identified by size (> 4000 characters) or binary indicators
+- The first record logged will show how many columns were skipped
+- Reduces file size and memory usage significantly for tables with large text/binary fields
+
+**Use cases:**
+- Exporting metadata tables with description fields
+- Working with tables containing XML or large JSON documents
+- Focusing on structured data while ignoring binary content
+- Performance optimization for tables with many large columns
 
 ### Example with SQL file
 
@@ -240,6 +270,7 @@ vx info output.vortex
 - **In-memory buffer**: Records are currently buffered before writing (future optimization possible)
 - **Fixed schema**: Inferred from first record only (subsequent records must match)
 - **Security**: Password is passed as CLI argument (visible with `ps`). Use environment variables in production.
+- **LOB types**: By default, LOB columns (CLOB, BLOB, NCLOB) are included. Use `--skip-lobs` to exclude them for better performance and smaller file sizes.
 
 ## Development
 

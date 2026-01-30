@@ -74,6 +74,7 @@ oracle2vortex \
 | `--sid` | | SID ou nom de service Oracle | (requis) |
 | `--sqlcl-path` | | Chemin vers l'exécutable SQLcl | `sql` |
 | `--auto-batch-rows` | | Nombre de lignes par lot (0 = désactivé) | 0 |
+| `--skip-lobs` | | Ignorer les types LOB Oracle (CLOB, BLOB, NCLOB) | false |
 
 ### Auto-Batching (Grandes Tables)
 
@@ -107,6 +108,35 @@ oracle2vortex \
 Exemple : 50000 lignes × 1 KB = 100 MB par lot (au lieu de charger toute la table)
 
 **Voir aussi :** `BATCH_PROCESSING.md` et `README_LARGE_DATASETS.md` pour plus de détails.
+
+### Ignorer les colonnes LOB
+
+Les types LOB Oracle (CLOB, BLOB, NCLOB) peuvent être très volumineux et ne sont pas toujours nécessaires pour l'analyse. Utilisez `--skip-lobs` pour les exclure :
+
+```bash
+# Ignorer les colonnes LOB pour réduire la taille du fichier et améliorer les performances
+oracle2vortex \
+  -f query.sql \
+  -o data.vortex \
+  --host db.example.com \
+  --port 1521 \
+  -u hr \
+  -p secret123 \
+  --sid PROD \
+  --skip-lobs
+```
+
+**Fonctionnement :**
+- Détecte et filtre automatiquement les colonnes contenant des données LOB
+- Les LOB sont identifiés par leur taille (> 4000 caractères) ou des indicateurs binaires
+- Le premier enregistrement loggé indiquera combien de colonnes ont été ignorées
+- Réduit significativement la taille du fichier et l'utilisation mémoire pour les tables avec de grands champs texte/binaires
+
+**Cas d'usage :**
+- Export de tables de métadonnées avec champs de description
+- Travail avec tables contenant des documents XML ou JSON volumineux
+- Se concentrer sur les données structurées en ignorant le contenu binaire
+- Optimisation des performances pour tables avec de nombreuses grandes colonnes
 
 ### Exemple avec fichier SQL
 
@@ -237,6 +267,7 @@ vx info output.vortex
 - **Buffer en mémoire** : Les records sont actuellement bufferisés avant écriture (optimisation future possible)
 - **Schéma fixe** : Inféré du premier record uniquement (les records suivants doivent correspondre)
 - **Sécurité** : Le mot de passe est passé en argument CLI (visible avec `ps`). Utiliser des variables d'environnement en production.
+- **Types LOB** : Par défaut, les colonnes LOB (CLOB, BLOB, NCLOB) sont incluses. Utilisez `--skip-lobs` pour les exclure et améliorer les performances et réduire la taille des fichiers.
 
 ## Développement
 

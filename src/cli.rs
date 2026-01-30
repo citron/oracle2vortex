@@ -45,6 +45,10 @@ pub struct CliArgs {
     /// When enabled, wraps query with OFFSET/FETCH and executes multiple times
     #[arg(long, default_value = "0")]
     pub auto_batch_rows: usize,
+
+    /// Skip Oracle LOB types (CLOB, BLOB, NCLOB) - exclude them from the output
+    #[arg(long, default_value = "false")]
+    pub skip_lobs: bool,
 }
 
 impl CliArgs {
