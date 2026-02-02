@@ -2,6 +2,13 @@
 
 This document lists all available README translations for the oracle2vortex project.
 
+> ⚠️ **Translation Status Note**:  
+> - **French** (`README.fr.md`): ✅ Updated 2026-02-02 - Includes all recent features (INTERVAL, JSON, etc.)
+> - **Other languages**: Last updated 2026-01-30 - Missing recent additions (INTERVAL types, JSON support, comprehensive type mapping)
+> - **English** (`README.md`): ✅ Always current (authoritative version)
+>
+> See [`TRANSLATION_UPDATE_NOTES.md`](TRANSLATION_UPDATE_NOTES.md) for details on changes needing translation.
+
 ## 🌍 Available Languages (26 total)
 
 **Main README:** English (`README.md`)  

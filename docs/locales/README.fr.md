@@ -222,19 +222,68 @@ oracle2vortex \
 
 ## Types de données supportés
 
-La conversion des types JSON vers Vortex se fait automatiquement :
+Mappage automatique des types Oracle vers Vortex avec stockage optimal :
 
-| Type JSON | Type Vortex | Nullable | Notes |
-|-----------|-------------|----------|-------|
-| `null` | `Utf8` | ✅ | Déduit comme string nullable |
-| `boolean` | `Bool` | ✅ | Via BoolArray |
-| `number` (entier) | `Primitive(I64)` | ✅ | Détecté avec `is_f64() == false` |
-| `number` (float) | `Primitive(F64)` | ✅ | Détecté avec `is_f64() == true` |
-| `string` | `Utf8` | ✅ | Via VarBinArray |
-| `array` | `Utf8` | ✅ | Sérialisé comme string JSON |
-| `object` | `Utf8` | ✅ | Sérialisé comme string JSON |
+### Mappage complet des types
+
+| Type Oracle | Export JSON | Type Vortex | Stockage | Notes |
+|-------------|-------------|-------------|---------|-------|
+| **Types Temporels** |
+| `DATE` | `"2024-01-15"` | `Extension(Date)` | I32 | Jours depuis 1970-01-01 |
+| `TIMESTAMP` | `"2024-01-15T14:30:45.123456"` | `Extension(Timestamp)` | I64 | Microsecondes depuis epoch |
+| `TIMESTAMP WITH TIME ZONE` | `"2024-01-15T14:30:45.123456 +02:00"` | `Extension(Timestamp)` | I64 | Converti en UTC, fuseau dans métadonnées |
+| `TIMESTAMP WITH LOCAL TZ` | Identique à TIMESTAMP WITH TZ | `Extension(Timestamp)` | I64 | Converti vers fuseau session puis UTC |
+| `INTERVAL DAY TO SECOND` | `"+02 02:30:00.123456"` | `Primitive(I64)` | I64 | Microsecondes totales |
+| `INTERVAL YEAR TO MONTH` | `"+01-06"` | `Primitive(I32)` | I32 | Mois totaux |
+| **Types Numériques** |
+| `NUMBER` (entier) | `123` | `Primitive(I64)` | I64 | Nombres entiers |
+| `NUMBER` (décimal) | `123.45` | `Primitive(F64)` | F64 | Virgule flottante |
+| `BINARY_FLOAT` | `3.14` | `Primitive(F64)` | F64 | Précision simple IEEE 754 |
+| `BINARY_DOUBLE` | `2.718` | `Primitive(F64)` | F64 | Précision double IEEE 754 |
+| **Types Caractères** |
+| `VARCHAR2`, `NVARCHAR2` | `"texte"` | `Utf8` | VarBinArray | Chaînes longueur variable |
+| `CHAR`, `NCHAR` | `"texte"` | `Utf8` | VarBinArray | Longueur fixe (avec padding) |
+| `CLOB`, `NCLOB` | `"long texte"` | `Utf8` ou ignoré | VarBinArray | Utiliser `--skip-lobs` pour exclure |
+| **Types Binaires** |
+| `RAW`, `LONG RAW` | `"DEADBEEF"` (hex) | `Binary` | VarBinArray | Détecté si ≥8 caractères hex |
+| `BLOB` | `"chaîne hex"` | `Binary` ou ignoré | VarBinArray | Utiliser `--skip-lobs` pour exclure |
+| **Types Structurés** |
+| `JSON` (Oracle 21c+) | `"{\"key\":\"value\"}"` | `Utf8` | VarBinArray | JSON validé, conservé en chaîne |
+| `XMLTYPE` | `"<root/>"` | `Utf8` | VarBinArray | XML en chaîne |
+| **Autres Types** |
+| `ROWID`, `UROWID` | `"AAABbbCCC..."` | `Utf8` | VarBinArray | Format spécifique Oracle |
+| `BOOLEAN` (via JSON) | `true`/`false` | `Bool` | BitBuffer | Booléen natif |
+| `null` | `null` | (inféré) | - | Variante nullable du type détecté |
 
 **Note** : Tous les types sont nullable pour gérer les valeurs Oracle NULL.
+
+**Pour les algorithmes détaillés de mappage et la logique de détection, voir :**
+- [`docs/ORACLE_TYPE_MAPPING.md`](../ORACLE_TYPE_MAPPING.md) - Référence technique complète avec algorithmes de détection
+- [`docs/TEMPORAL_TYPES.md`](../TEMPORAL_TYPES.md) - Détails d'implémentation des types temporels et tests
+
+### Types temporels avec support des fuseaux horaires
+
+Les colonnes temporelles Oracle sont automatiquement détectées et converties vers les types temporels natifs Vortex :
+
+- **DATE** (YYYY-MM-DD): Stocké comme `Extension(vortex.date)` avec I32 (jours depuis 1970-01-01)
+- **TIMESTAMP** (YYYY-MM-DDTHH:MI:SS[.ffffff]): Stocké comme `Extension(vortex.timestamp)` avec I64 (microsecondes depuis epoch)
+- **TIMESTAMP WITH TIME ZONE**: Stocké comme `Extension(vortex.timestamp)` avec métadonnées de fuseau, **converti en UTC** pour le stockage
+
+SQLcl est configuré pour exporter ces formats en utilisant :
+```sql
+ALTER SESSION SET NLS_DATE_FORMAT = 'YYYY-MM-DD"T"HH24:MI:SS';
+ALTER SESSION SET NLS_TIMESTAMP_FORMAT = 'YYYY-MM-DD"T"HH24:MI:SS.FF';
+ALTER SESSION SET NLS_TIMESTAMP_TZ_FORMAT = 'YYYY-MM-DD"T"HH24:MI:SS.FF TZH:TZM';
+```
+
+### Données binaires (RAW/BLOB)
+
+Les types Oracle RAW et BLOB sont détectés lorsqu'exportés comme chaînes hexadécimales (minimum 8 caractères, majuscules) :
+- Conversion automatique hex vers binaire
+- Stockage efficace dans `DType::Binary` utilisant `VarBinArray`
+- Exemple : `HEXTORAW('DEADBEEF')` → binaire `[0xDE, 0xAD, 0xBE, 0xEF]`
+
+Cela garantit que les dates, horodatages et données binaires sont préservés en tant que données typées, non comme chaînes, permettant des requêtes et opérations efficaces.
 
 ## Logs et débogage
 
