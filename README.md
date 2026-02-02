@@ -388,7 +388,9 @@ Logs include:
 
 ## Verifying generated Vortex files
 
-To verify generated files, use the `vx` tool:
+To verify generated files, use the `vx` tool or DuckDB:
+
+### Using vx (Vortex CLI)
 
 ```bash
 # Install vx (Vortex CLI tool)
@@ -400,6 +402,32 @@ vx browse output.vortex
 # Display metadata
 vx info output.vortex
 ```
+
+### Using DuckDB
+
+DuckDB 1.4.4+ can read Vortex files directly. However, **temporal types (DATE, TIMESTAMP) appear as numbers** because DuckDB doesn't automatically recognize Vortex extension types.
+
+```sql
+-- View dates/timestamps as numbers (raw storage format)
+SELECT * FROM 'employees.vortex';
+
+-- Convert to readable dates and timestamps
+SELECT 
+    employee_id,
+    first_name,
+    (DATE '1970-01-01' + INTERVAL (hire_date) DAYS) AS hire_date_readable,
+    to_timestamp(last_update / 1000000.0) AS last_update_readable
+FROM 'employees.vortex';
+```
+
+**📖 For complete DuckDB usage guide, see:** [`docs/DUCKDB_USAGE.md`](docs/DUCKDB_USAGE.md)
+
+Includes:
+- Date/timestamp conversion formulas
+- INTERVAL type handling
+- Performance optimization tips
+- Creating readable views
+- Filtering strategies
 
 ## Limitations and considerations
 

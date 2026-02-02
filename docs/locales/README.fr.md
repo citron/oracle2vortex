@@ -325,6 +325,32 @@ vx browse output.vortex
 vx info output.vortex
 ```
 
+### Utiliser DuckDB
+
+DuckDB 1.4.4+ peut lire les fichiers Vortex directement. Cependant, **les types temporels (DATE, TIMESTAMP) apparaissent comme des nombres** car DuckDB ne reconnaît pas automatiquement les types d'extension Vortex.
+
+```sql
+-- Voir les dates/timestamps comme des nombres (format de stockage brut)
+SELECT * FROM 'employees.vortex';
+
+-- Convertir en dates et timestamps lisibles
+SELECT 
+    employee_id,
+    first_name,
+    (DATE '1970-01-01' + INTERVAL (hire_date) DAYS) AS hire_date_readable,
+    to_timestamp(last_update / 1000000.0) AS last_update_readable
+FROM 'employees.vortex';
+```
+
+**📖 Pour le guide complet d'utilisation DuckDB, voir :** [`docs/DUCKDB_USAGE.md`](../DUCKDB_USAGE.md)
+
+Comprend :
+- Formules de conversion date/timestamp
+- Gestion des types INTERVAL
+- Conseils d'optimisation des performances
+- Création de vues lisibles
+- Stratégies de filtrage
+
 ## Limitations et considérations
 
 - **Types complexes** : Les objets JSON imbriqués et les tableaux sont sérialisés en chaînes
