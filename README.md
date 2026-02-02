@@ -215,7 +215,10 @@ oracle2vortex \
 2. **SQLcl Launch**: Process starts with Oracle connection
 3. **Session configuration**:
    - `SET SQLFORMAT JSON` for JSON export
-   - `SET NLS_NUMERIC_CHARACTERS='.,';` to avoid locale issues
+   - `SET NLS_NUMERIC_CHARACTERS='.,';` for decimal point compatibility
+   - `SET NLS_DATE_FORMAT='YYYY-MM-DD"T"HH24:MI:SS';` for ISO 8601 date format
+   - `SET NLS_TIMESTAMP_FORMAT='YYYY-MM-DD"T"HH24:MI:SS.FF';` for ISO 8601 timestamp format
+   - Additional settings for optimized export (FEEDBACK OFF, TIMING OFF, TERMOUT OFF, etc.)
 4. **Query execution**: The SQL query is sent via stdin
 5. **Output capture**: Complete reading of JSON stdout
 6. **JSON extraction**: Isolation of the `{"results":[{"items":[...]}]}` structure
@@ -233,11 +236,28 @@ JSON to Vortex type conversion is automatic:
 | `boolean` | `Bool` | ✅ | Via BoolArray |
 | `number` (integer) | `Primitive(I64)` | ✅ | Detected with `is_f64() == false` |
 | `number` (float) | `Primitive(F64)` | ✅ | Detected with `is_f64() == true` |
-| `string` | `Utf8` | ✅ | Via VarBinArray |
+| `string` (ISO date) | `Extension(Date)` | ✅ | Format: YYYY-MM-DD, stored as days since epoch (I32) |
+| `string` (ISO timestamp) | `Extension(Timestamp)` | ✅ | Format: YYYY-MM-DD**T**HH:MI:SS[.ffffff], stored as microseconds since epoch (I64) |
+| `string` (other) | `Utf8` | ✅ | Via VarBinArray |
 | `array` | `Utf8` | ✅ | Serialized as JSON string |
 | `object` | `Utf8` | ✅ | Serialized as JSON string |
 
 **Note**: All types are nullable to handle Oracle NULL values.
+
+### Temporal types (Date and Timestamp)
+
+Oracle DATE and TIMESTAMP columns are automatically detected and converted to native Vortex temporal types:
+
+- **Date** (YYYY-MM-DD): Stored as `Extension(vortex.date)` with I32 backing (days since 1970-01-01)
+- **Timestamp** (YYYY-MM-DDTHH:MI:SS.ffffff): Stored as `Extension(vortex.timestamp)` with I64 backing (microseconds since epoch)
+
+SQLcl is configured to output these formats using:
+```sql
+ALTER SESSION SET NLS_DATE_FORMAT = 'YYYY-MM-DD"T"HH24:MI:SS';
+ALTER SESSION SET NLS_TIMESTAMP_FORMAT = 'YYYY-MM-DD"T"HH24:MI:SS.FF';
+```
+
+This ensures dates and timestamps are preserved as typed data, not strings, enabling efficient temporal queries and operations.
 
 ## Logging and debugging
 

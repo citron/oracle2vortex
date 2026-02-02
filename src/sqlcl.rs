@@ -38,14 +38,24 @@ impl SqlclProcess {
             );
             stdin.write_all(full_connect.as_bytes()).await?;
 
-            // Set numeric format to avoid locale issues with decimals
-            stdin.write_all(b"ALTER SESSION SET NLS_NUMERIC_CHARACTERS='.,';\n").await?;
+            // Optimisation de l'affichage pour l'export fichier
+            stdin.write_all(b"SET FEEDBACK OFF\n").await?;      // Masque "X rows selected"
+            stdin.write_all(b"SET TIMING OFF\n").await?;        // Masque le temps d'exécution
+            stdin.write_all(b"SET VERIFY OFF\n").await?;        // Masque la substitution de variables
+            stdin.write_all(b"SET HEADING OFF\n").await?;       // Pas d'en-tête (géré par JSON)
+            stdin.write_all(b"SET PAGESIZE 0\n").await?;        // Pas de pagination
+            stdin.write_all(b"SET TERMOUT OFF\n").await?;       // N'affiche rien à l'écran
+            stdin.write_all(b"SET TRIMSPOOL ON\n").await?;      // Supprime les espaces en fin de ligne
+            stdin.write_all(b"SET ENCODING UTF-8\n").await?;    // Force l'UTF-8
 
-            // Set SQLcl output format to JSON (preserves type information)
+            // Configuration Régionale (Session) pour compatibilité JSON stricte
+            stdin.write_all(b"ALTER SESSION SET NLS_NUMERIC_CHARACTERS = '.,';\n").await?;
+            stdin.write_all(b"ALTER SESSION SET NLS_DATE_FORMAT = 'YYYY-MM-DD\"T\"HH24:MI:SS';\n").await?;
+            stdin.write_all(b"ALTER SESSION SET NLS_TIMESTAMP_FORMAT = 'YYYY-MM-DD\"T\"HH24:MI:SS.FF';\n").await?;
+            stdin.write_all(b"ALTER SESSION SET NLS_TIMESTAMP_TZ_FORMAT = 'YYYY-MM-DD\"T\"HH24:MI:SS.FF TZH:TZM';\n").await?;
+
+            // Configuration du format de sortie SQLcl
             stdin.write_all(b"SET SQLFORMAT JSON\n").await?;
-            stdin.write_all(b"SET PAGESIZE 0\n").await?;
-            stdin.write_all(b"SET FEEDBACK OFF\n").await?;
-            stdin.write_all(b"SET HEADING OFF\n").await?;
 
             // Execute the query (ensure it ends with semicolon)
             stdin.write_all(sql_query.as_bytes()).await?;
