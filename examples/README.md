@@ -1,6 +1,56 @@
 # Examples - oracle2vortex
 
-This directory contains example SQL files for testing oracle2vortex.
+This directory contains example SQL files and DuckDB helpers for testing and using oracle2vortex.
+
+## Files
+
+| File | Description | Lines |
+|------|-------------|-------|
+| `sample_query.sql` | Basic Oracle query example (HR schema) | - |
+| `duckdb_helpers.sql` | **DuckDB macros for Vortex temporal types** | 255 |
+| `duckdb_usage_examples.sql` | Complete DuckDB query examples (9 scenarios) | 401 |
+| `README_DUCKDB.md` | DuckDB quick start guide | - |
+| `README.md` | This file | - |
+
+## DuckDB Usage
+
+**NEW!** Reusable macros to view Vortex temporal types in DuckDB.
+
+### Quick Start
+
+```bash
+# 1. Start DuckDB
+duckdb
+
+# 2. Load helper macros (once per session)
+.read examples/duckdb_helpers.sql
+
+# 3. Query Vortex files with automatic date/timestamp conversion
+SELECT 
+    employee_id,
+    first_name,
+    vortex_to_date(hire_date) AS hire_date,
+    vortex_to_timestamp(last_update) AS last_update
+FROM 'employees.vortex';
+```
+
+### Available Macros (16 total)
+
+- `vortex_to_date(days)` - Convert DATE (I32) to readable date
+- `vortex_to_timestamp(micros)` - Convert TIMESTAMP (I64) to readable timestamp
+- `vortex_to_timestamptz(micros)` - Convert TIMESTAMP WITH TZ to timestamptz
+- `vortex_to_interval_ds(micros)` - Convert INTERVAL DAY TO SECOND
+- `vortex_to_interval_ym(months)` - Convert INTERVAL YEAR TO MONTH
+- `date_to_vortex(dt)` - Convert DuckDB date to Vortex (for fast WHERE filtering)
+- `timestamp_to_vortex(ts)` - Convert DuckDB timestamp to Vortex
+- `interval_ds_days/hours/minutes/seconds()` - Extract interval components
+- `interval_ym_years/months()` - Extract year/month components
+- `vortex_to_hex(binary)` - View binary data as hex
+- `vortex_binary_size(binary)` - Get binary size in bytes
+
+**See:** [`README_DUCKDB.md`](README_DUCKDB.md) for complete documentation and [`duckdb_usage_examples.sql`](duckdb_usage_examples.sql) for 9 complete examples.
+
+## Oracle Query Examples
 
 ## sample_query.sql
 

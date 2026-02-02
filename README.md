@@ -407,27 +407,39 @@ vx info output.vortex
 
 DuckDB 1.4.4+ can read Vortex files directly. However, **temporal types (DATE, TIMESTAMP) appear as numbers** because DuckDB doesn't automatically recognize Vortex extension types.
 
-```sql
--- View dates/timestamps as numbers (raw storage format)
-SELECT * FROM 'employees.vortex';
+#### Quick Start
 
--- Convert to readable dates and timestamps
+```bash
+# 1. Start DuckDB
+duckdb
+
+# 2. Load helper macros (do this once per session)
+.read examples/duckdb_helpers.sql
+
+# 3. Query with automatic conversions
 SELECT 
     employee_id,
     first_name,
-    (DATE '1970-01-01' + INTERVAL (hire_date) DAYS) AS hire_date_readable,
-    to_timestamp(last_update / 1000000.0) AS last_update_readable
+    vortex_to_date(hire_date) AS hire_date,
+    vortex_to_timestamp(last_update) AS last_update
 FROM 'employees.vortex';
 ```
 
-**📖 For complete DuckDB usage guide, see:** [`docs/DUCKDB_USAGE.md`](docs/DUCKDB_USAGE.md)
+#### Reusable Macros Available
 
-Includes:
-- Date/timestamp conversion formulas
-- INTERVAL type handling
-- Performance optimization tips
-- Creating readable views
-- Filtering strategies
+After loading `examples/duckdb_helpers.sql`:
+- `vortex_to_date(days)` - Convert DATE to readable
+- `vortex_to_timestamp(micros)` - Convert TIMESTAMP to readable
+- `vortex_to_interval_ds(micros)` - Convert INTERVAL DAY TO SECOND
+- `vortex_to_interval_ym(months)` - Convert INTERVAL YEAR TO MONTH
+- `date_to_vortex(dt)` - Convert DuckDB date to Vortex (for fast filtering)
+- [+15 more macros](examples/README_DUCKDB.md)
+
+**📖 Complete resources:**
+- [`examples/README_DUCKDB.md`](examples/README_DUCKDB.md) - Quick start guide
+- [`examples/duckdb_helpers.sql`](examples/duckdb_helpers.sql) - **Load this file!** (255 lines, 16 macros)
+- [`examples/duckdb_usage_examples.sql`](examples/duckdb_usage_examples.sql) - 9 complete examples (400 lines)
+- [`docs/DUCKDB_USAGE.md`](docs/DUCKDB_USAGE.md) - Detailed technical documentation
 
 ## Limitations and considerations
 
