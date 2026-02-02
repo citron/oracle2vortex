@@ -1,14 +1,19 @@
-# Temporal Types Support - Implementation Notes
+# Temporal and Binary Types Support - Implementation Notes
 
 ## Overview
 
-As of this version, `oracle2vortex` automatically detects and preserves Oracle DATE and TIMESTAMP columns as native Vortex temporal types instead of strings.
+`oracle2vortex` automatically detects and preserves Oracle temporal types (DATE, TIMESTAMP, TIMESTAMP WITH TIME ZONE) and binary types (RAW, BLOB) as native Vortex types instead of strings. This provides optimal storage efficiency, type safety, and query performance.
+
+## Version History
+
+- **v0.1.0**: Initial DATE and TIMESTAMP support
+- **v0.2.0**: Added TIMESTAMP WITH TIME ZONE and RAW/Binary support
 
 ## Changes Made
 
 ### 1. Dependencies Added
 
-- `jiff = "0.1"` - For ISO 8601 date/timestamp parsing
+- `jiff = "0.1"` - For ISO 8601 date/timestamp parsing (including timezone support)
 - `vortex-dtype` with feature `"arrow"` - Enables temporal extension types
 
 ### 2. SQLcl Configuration Enhanced
@@ -34,20 +39,30 @@ SET ENCODING UTF-8     -- Force UTF-8 encoding
 
 In `vortex_writer.rs`, the `infer_dtype()` function now:
 
-1. **Detects ISO 8601 dates** (YYYY-MM-DD format)
+1. **Detects ISO 8601 timestamps with timezone** (YYYY-MM-DDTHH:MI:SS[.fff] +/-HH:MM or Z)
+   - Maps to `Extension(vortex.timestamp)` with I64 backing and timezone metadata
+   - Stores as microseconds since Unix epoch (UTC)
+   - Timezone preserved in metadata
+
+2. **Detects ISO 8601 dates** (YYYY-MM-DD format)
    - Maps to `Extension(vortex.date)` with I32 backing
    - Stores as days since 1970-01-01
 
-2. **Detects ISO 8601 timestamps** (YYYY-MM-DDTHH:MI:SS[.ffffff] format)
+3. **Detects ISO 8601 timestamps without timezone** (YYYY-MM-DDTHH:MI:SS[.ffffff])
    - Maps to `Extension(vortex.timestamp)` with I64 backing
    - Stores as microseconds since Unix epoch
    - Supports fractional seconds up to 6 digits (microseconds)
 
-3. **Falls back to Utf8** for other string values
+4. **Detects hexadecimal binary data** (RAW/BLOB as hex strings)
+   - Maps to `DType::Binary`
+   - Converts from hex string to raw bytes
+   - Minimum 8 characters to avoid false positives
+
+5. **Falls back to Utf8** for other string values
 
 ### 4. Parsing Functions
 
-Two new parsing functions were added:
+Several parsing functions were added:
 
 ```rust
 fn parse_date_to_days(s: &str) -> Option<i32>
@@ -64,18 +79,40 @@ fn parse_timestamp_to_micros(s: &str) -> Option<i64>
 - Handles fractional seconds correctly
 - Example: "1970-01-01T00:00:01.500000" → 1,500,000
 
+```rust
+fn parse_oracle_tz_format(s: &str) -> Option<i64>
+```
+- Parses YYYY-MM-DDTHH:MI:SS[.ffffff] +/-HH:MM or Z
+- Converts to UTC by subtracting timezone offset
+- Returns microseconds since Unix epoch (UTC)
+- Example: "2024-01-15T14:00:00 +02:00" → UTC 12:00:00
+
+```rust
+fn parse_tz_offset(tz: &str) -> Option<i64>
+```
+- Parses timezone offset string (e.g., "+02:00", "-05:30")
+- Returns offset in seconds
+- Example: "+02:00" → 7200
+
+```rust
+fn hex_to_binary(s: &str) -> Option<Vec<u8>>
+```
+- Converts hexadecimal string to binary bytes
+- Example: "DEADBEEF" → [0xDE, 0xAD, 0xBE, 0xEF]
+
 ### 5. Column Array Construction
 
-Added two new match branches in the `flush()` method to handle:
+Added match branches in the `flush()` method to handle:
 
 - `DType::Extension(DATE_ID)` - Constructs PrimitiveArray<i32> from parsed dates
-- `DType::Extension(TIMESTAMP_ID)` - Constructs PrimitiveArray<i64> from parsed timestamps
+- `DType::Extension(TIMESTAMP_ID)` - Constructs PrimitiveArray<i64> from parsed timestamps (with or without timezone)
+- `DType::Binary` - Constructs VarBinArray from hex-decoded binary data
 
 ## Testing
 
 ### Unit Tests
 
-Added 9 comprehensive unit tests in `src/vortex_writer.rs`:
+Added 17 comprehensive unit tests in `src/vortex_writer.rs`:
 
 1. `test_is_iso_date()` - Validates date pattern detection
 2. `test_is_iso_timestamp()` - Validates timestamp pattern detection

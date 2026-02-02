@@ -228,36 +228,59 @@ oracle2vortex \
 
 ## Supported data types
 
-JSON to Vortex type conversion is automatic:
+Automatic Oracle to Vortex type mapping with optimal storage:
 
-| JSON Type | Vortex Type | Nullable | Notes |
-|-----------|-------------|----------|-------|
-| `null` | `Utf8` | ✅ | Inferred as nullable string |
-| `boolean` | `Bool` | ✅ | Via BoolArray |
-| `number` (integer) | `Primitive(I64)` | ✅ | Detected with `is_f64() == false` |
-| `number` (float) | `Primitive(F64)` | ✅ | Detected with `is_f64() == true` |
-| `string` (ISO date) | `Extension(Date)` | ✅ | Format: YYYY-MM-DD, stored as days since epoch (I32) |
-| `string` (ISO timestamp) | `Extension(Timestamp)` | ✅ | Format: YYYY-MM-DD**T**HH:MI:SS[.ffffff], stored as microseconds since epoch (I64) |
-| `string` (other) | `Utf8` | ✅ | Via VarBinArray |
-| `array` | `Utf8` | ✅ | Serialized as JSON string |
-| `object` | `Utf8` | ✅ | Serialized as JSON string |
+### Complete Type Mapping
+
+| Oracle Type | JSON Export | Vortex Type | Storage | Notes |
+|-------------|-------------|-------------|---------|-------|
+| **Temporal Types** |
+| `DATE` | `"2024-01-15"` | `Extension(Date)` | I32 | Days since 1970-01-01 |
+| `TIMESTAMP` | `"2024-01-15T14:30:45.123456"` | `Extension(Timestamp)` | I64 | Microseconds since epoch |
+| `TIMESTAMP WITH TIME ZONE` | `"2024-01-15T14:30:45.123456 +02:00"` | `Extension(Timestamp)` | I64 | Converted to UTC, timezone in metadata |
+| `TIMESTAMP WITH LOCAL TZ` | Same as TIMESTAMP WITH TZ | `Extension(Timestamp)` | I64 | Converted to session timezone then UTC |
+| **Numeric Types** |
+| `NUMBER` (integer) | `123` | `Primitive(I64)` | I64 | Whole numbers |
+| `NUMBER` (decimal) | `123.45` | `Primitive(F64)` | F64 | Floating point |
+| `BINARY_FLOAT` | `3.14` | `Primitive(F64)` | F64 | IEEE 754 single precision |
+| `BINARY_DOUBLE` | `2.718` | `Primitive(F64)` | F64 | IEEE 754 double precision |
+| **Character Types** |
+| `VARCHAR2`, `NVARCHAR2` | `"text"` | `Utf8` | VarBinArray | Variable-length strings |
+| `CHAR`, `NCHAR` | `"text"` | `Utf8` | VarBinArray | Fixed-length (padded) |
+| `CLOB`, `NCLOB` | `"long text"` | `Utf8` or skip | VarBinArray | Use `--skip-lobs` to exclude |
+| **Binary Types** |
+| `RAW`, `LONG RAW` | `"DEADBEEF"` (hex) | `Binary` | VarBinArray | Detected if ≥8 hex chars |
+| `BLOB` | `"hex string"` | `Binary` or skip | VarBinArray | Use `--skip-lobs` to exclude |
+| **Other Types** |
+| `ROWID`, `UROWID` | `"AAABbbCCC..."` | `Utf8` | VarBinArray | Oracle-specific format |
+| `BOOLEAN` (via JSON) | `true`/`false` | `Bool` | BitBuffer | Native boolean |
+| `null` | `null` | (inferred) | - | Nullable variant of detected type |
 
 **Note**: All types are nullable to handle Oracle NULL values.
 
-### Temporal types (Date and Timestamp)
+### Temporal Types with Timezone Support
 
-Oracle DATE and TIMESTAMP columns are automatically detected and converted to native Vortex temporal types:
+Oracle temporal columns are automatically detected and converted to native Vortex temporal types:
 
-- **Date** (YYYY-MM-DD): Stored as `Extension(vortex.date)` with I32 backing (days since 1970-01-01)
-- **Timestamp** (YYYY-MM-DDTHH:MI:SS.ffffff): Stored as `Extension(vortex.timestamp)` with I64 backing (microseconds since epoch)
+- **DATE** (YYYY-MM-DD): Stored as `Extension(vortex.date)` with I32 backing (days since 1970-01-01)
+- **TIMESTAMP** (YYYY-MM-DDTHH:MI:SS[.ffffff]): Stored as `Extension(vortex.timestamp)` with I64 backing (microseconds since epoch)
+- **TIMESTAMP WITH TIME ZONE**: Stored as `Extension(vortex.timestamp)` with timezone metadata, **converted to UTC** for storage
 
 SQLcl is configured to output these formats using:
 ```sql
 ALTER SESSION SET NLS_DATE_FORMAT = 'YYYY-MM-DD"T"HH24:MI:SS';
 ALTER SESSION SET NLS_TIMESTAMP_FORMAT = 'YYYY-MM-DD"T"HH24:MI:SS.FF';
+ALTER SESSION SET NLS_TIMESTAMP_TZ_FORMAT = 'YYYY-MM-DD"T"HH24:MI:SS.FF TZH:TZM';
 ```
 
-This ensures dates and timestamps are preserved as typed data, not strings, enabling efficient temporal queries and operations.
+### Binary Data (RAW/BLOB)
+
+Oracle RAW and BLOB types are detected when exported as hexadecimal strings (minimum 8 characters, uppercase):
+- Automatically converted from hex to binary
+- Stored efficiently in `DType::Binary` using `VarBinArray`
+- Example: `HEXTORAW('DEADBEEF')` → binary `[0xDE, 0xAD, 0xBE, 0xEF]`
+
+This ensures dates, timestamps, and binary data are preserved as typed data, not strings, enabling efficient queries and operations.
 
 ## Logging and debugging
 

@@ -98,7 +98,22 @@ impl VortexWriter {
             }
             Value::String(s) => {
                 // Detect ISO 8601 date/timestamp patterns
-                if Self::is_iso_date(s) {
+                // Check for timezone first (more specific pattern)
+                if Self::is_iso_timestamp_tz(s) {
+                    // Timestamp with timezone: YYYY-MM-DDTHH:MI:SS.FF+HH:MM or Z
+                    if let Some(tz) = Self::extract_timezone(s) {
+                        let metadata = TemporalMetadata::Timestamp(TimeUnit::Microseconds, Some(tz));
+                        let ext_dtype = ExtDType::new(
+                            TIMESTAMP_ID.clone(),
+                            Arc::new(DType::Primitive(PType::I64, Nullability::Nullable)),
+                            Some(metadata.into()),
+                        );
+                        DType::Extension(Arc::new(ext_dtype))
+                    } else {
+                        // Fallback if timezone extraction fails
+                        DType::Utf8(Nullability::Nullable)
+                    }
+                } else if Self::is_iso_date(s) {
                     // Pure date: YYYY-MM-DD
                     let metadata = TemporalMetadata::Date(TimeUnit::Days);
                     let ext_dtype = ExtDType::new(
@@ -108,7 +123,7 @@ impl VortexWriter {
                     );
                     DType::Extension(Arc::new(ext_dtype))
                 } else if Self::is_iso_timestamp(s) {
-                    // Timestamp with optional fractional seconds and timezone
+                    // Timestamp without timezone
                     let metadata = TemporalMetadata::Timestamp(TimeUnit::Microseconds, None);
                     let ext_dtype = ExtDType::new(
                         TIMESTAMP_ID.clone(),
@@ -116,6 +131,9 @@ impl VortexWriter {
                         Some(metadata.into()),
                     );
                     DType::Extension(Arc::new(ext_dtype))
+                } else if Self::is_hex_string(s) {
+                    // RAW/LONG RAW data (hex encoded)
+                    DType::Binary(Nullability::Nullable)
                 } else {
                     DType::Utf8(Nullability::Nullable)
                 }
@@ -133,10 +151,150 @@ impl VortexWriter {
         Date::strptime("%Y-%m-%d", s).is_ok()
     }
 
-    /// Check if a string is an ISO 8601 timestamp (YYYY-MM-DDTHH:MM:SS[.ffffff][Z|±HH:MM])
+    /// Check if a string is an ISO 8601 timestamp (YYYY-MM-DDTHH:MM:SS[.ffffff]) without timezone
     fn is_iso_timestamp(s: &str) -> bool {
-        // Match YYYY-MM-DDTHH:MM:SS format (with optional fractional seconds and timezone)
-        s.contains('T') && DateTime::strptime("%Y-%m-%dT%H:%M:%S", &s[..19]).is_ok()
+        // Must contain T and not have timezone indicators at the end
+        if !s.contains('T') || s.len() < 19 {
+            return false;
+        }
+        
+        // Check if it has timezone (would be handled by is_iso_timestamp_tz)
+        let has_tz = s.ends_with('Z') || 
+                      s.contains("+") && s.rfind('+').unwrap() > 19 ||
+                      s.matches('-').count() > 2; // More than date hyphens = timezone
+        
+        if has_tz {
+            return false; // Let is_iso_timestamp_tz handle it
+        }
+        
+        DateTime::strptime("%Y-%m-%dT%H:%M:%S", &s[..19.min(s.len())]).is_ok()
+    }
+
+    /// Check if a string is an ISO 8601 timestamp with timezone
+    fn is_iso_timestamp_tz(s: &str) -> bool {
+        if !s.contains('T') || s.len() < 20 {
+            return false;
+        }
+        
+        // Check for timezone indicators
+        s.ends_with('Z') ||  // UTC indicator
+        s.contains(" +") || s.contains(" -") || // Oracle TZ format with space
+        (s.rfind('+').map(|i| i >= 19).unwrap_or(false)) || // +HH:MM after timestamp (>= not >)
+        (s.rfind('-').map(|i| i >= 19).unwrap_or(false) && s.matches('-').count() > 2)
+    }
+
+    /// Extract timezone string from ISO timestamp
+    fn extract_timezone(s: &str) -> Option<String> {
+        if s.ends_with('Z') {
+            return Some("UTC".to_string());
+        }
+        
+        // Look for +/-HH:MM or space +/-HH:MM (Oracle format)
+        if let Some(pos) = s.rfind(" +").or_else(|| s.rfind(" -")) {
+            // Oracle format with space: "2024-01-01T12:00:00.000000 +02:00"
+            return Some(s[pos+1..].trim().to_string());
+        }
+        
+        if let Some(pos) = s.rfind('+') {
+            if pos >= 19 { // After or at end of basic timestamp part
+                return Some(s[pos..].to_string());
+            }
+        }
+        
+        if let Some(pos) = s.rfind('-') {
+            if pos >= 19 && s.matches('-').count() > 2 { // More than date hyphens
+                return Some(s[pos..].to_string());
+            }
+        }
+        
+        None
+    }
+
+    /// Parse Oracle timezone format to get UTC timestamp
+    fn parse_oracle_tz_format(s: &str) -> Option<i64> {
+        // Oracle format: YYYY-MM-DDTHH:MM:SS.FF +HH:MM or -HH:MM
+        // Split timestamp and timezone
+        let parts: Vec<&str> = if s.contains(" +") || s.contains(" -") {
+            s.splitn(2, ' ').collect()
+        } else if s.ends_with('Z') {
+            // UTC timezone, just remove Z and parse
+            return Self::parse_timestamp_to_micros(&s[..s.len()-1]);
+        } else {
+            // Find last + or - that's not part of the date
+            if let Some(pos) = s.rfind('+').or_else(|| s.rfind('-').filter(|&p| p > 19)) {
+                vec![&s[..pos], &s[pos..]]
+            } else {
+                return None;
+            }
+        };
+        
+        if parts.len() != 2 {
+            return None;
+        }
+        
+        // Parse base timestamp without timezone
+        let base_micros = Self::parse_timestamp_to_micros(parts[0].trim())?;
+        
+        // Parse timezone offset (e.g., "+02:00" or "-05:30")
+        let tz_str = parts[1].trim();
+        let tz_offset_secs = Self::parse_tz_offset(tz_str)?;
+        
+        // Convert to UTC by subtracting the offset
+        Some(base_micros - (tz_offset_secs * 1_000_000))
+    }
+
+    /// Parse timezone offset string to seconds (e.g., "+02:00" -> 7200)
+    fn parse_tz_offset(tz: &str) -> Option<i64> {
+        // Remove any whitespace
+        let tz = tz.trim();
+        
+        // Check if it starts with + or -
+        let (sign, offset_str) = if tz.starts_with('+') {
+            (1i64, &tz[1..])
+        } else if tz.starts_with('-') {
+            (-1i64, &tz[1..])
+        } else {
+            return None;
+        };
+        
+        // Parse HH:MM format
+        let parts: Vec<&str> = offset_str.split(':').collect();
+        if parts.len() != 2 {
+            return None;
+        }
+        
+        let hours: i64 = parts[0].parse().ok()?;
+        let minutes: i64 = parts[1].parse().ok()?;
+        
+        Some(sign * (hours * 3600 + minutes * 60))
+    }
+
+    /// Check if a string is hexadecimal (RAW data from Oracle)
+    fn is_hex_string(s: &str) -> bool {
+        // Oracle RAW is exported as uppercase hex
+        // Minimum reasonable length: 8 chars (4 bytes) to avoid false positives with small numbers
+        // Must be even length (each byte = 2 hex chars)
+        if s.len() < 8 || s.len() % 2 != 0 {
+            return false;
+        }
+        
+        // Must be all hex digits and preferably uppercase (Oracle convention)
+        s.chars().all(|c| c.is_ascii_hexdigit())
+    }
+
+    /// Convert hex string to binary data
+    fn hex_to_binary(s: &str) -> Option<Vec<u8>> {
+        if s.len() % 2 != 0 {
+            return None;
+        }
+        
+        let mut bytes = Vec::with_capacity(s.len() / 2);
+        for i in (0..s.len()).step_by(2) {
+            let byte = u8::from_str_radix(&s[i..i+2], 16).ok()?;
+            bytes.push(byte);
+        }
+        
+        Some(bytes)
     }
 
     /// Parse ISO 8601 date to days since epoch
@@ -356,6 +514,7 @@ impl VortexWriter {
                 }
                 DType::Extension(ref ext) if ext.id() == &*TIMESTAMP_ID => {
                     // Handle Timestamp type (microseconds since epoch as I64)
+                    // Supports both with and without timezone
                     let mut values = Vec::with_capacity(self.records.len());
                     let mut validity = Vec::with_capacity(self.records.len());
 
@@ -364,7 +523,15 @@ impl VortexWriter {
                             if let Some(val) = obj.get(field_name) {
                                 match val {
                                     Value::String(s) => {
-                                        if let Some(micros) = Self::parse_timestamp_to_micros(s) {
+                                        // Try timezone-aware parsing first
+                                        let micros = if Self::is_iso_timestamp_tz(s) {
+                                            Self::parse_oracle_tz_format(s)
+                                                .or_else(|| Self::parse_timestamp_to_micros(s))
+                                        } else {
+                                            Self::parse_timestamp_to_micros(s)
+                                        };
+                                        
+                                        if let Some(micros) = micros {
                                             values.push(micros);
                                             validity.push(true);
                                         } else {
@@ -391,6 +558,22 @@ impl VortexWriter {
                     let buffer = Buffer::from(values);
                     let validity: Validity = validity.into_iter().collect();
                     PrimitiveArray::new(buffer, validity).into_array()
+                }
+                DType::Binary(_) => {
+                    // Handle Binary type (RAW/LONG RAW data)
+                    let values: Vec<Option<Vec<u8>>> = self.records.iter()
+                        .map(|record| {
+                            record.as_object()
+                                .and_then(|obj| obj.get(field_name))
+                                .and_then(|val| match val {
+                                    Value::String(s) => Self::hex_to_binary(s),
+                                    Value::Null => None,
+                                    _ => None,
+                                })
+                        })
+                        .collect();
+
+                    VarBinArray::from(values).into_array()
                 }
                 _ => {
                     // Fallback: convert to strings
@@ -547,5 +730,106 @@ mod tests {
         let dtype = VortexWriter::infer_dtype(&value);
         
         assert!(matches!(dtype, DType::Primitive(PType::F64, _)));
+    }
+
+    #[test]
+    fn test_is_iso_timestamp_tz() {
+        // UTC timezone
+        assert!(VortexWriter::is_iso_timestamp_tz("2024-03-15T14:30:45Z"));
+        // Positive offset
+        assert!(VortexWriter::is_iso_timestamp_tz("2024-03-15T14:30:45 +02:00"));
+        assert!(VortexWriter::is_iso_timestamp_tz("2024-03-15T14:30:45+02:00"));
+        // Negative offset
+        assert!(VortexWriter::is_iso_timestamp_tz("2024-03-15T14:30:45 -05:00"));
+        assert!(VortexWriter::is_iso_timestamp_tz("2024-03-15T14:30:45-05:00"));
+        // Not a timezone timestamp
+        assert!(!VortexWriter::is_iso_timestamp_tz("2024-03-15T14:30:45"));
+        assert!(!VortexWriter::is_iso_timestamp_tz("2024-03-15"));
+    }
+
+    #[test]
+    fn test_extract_timezone() {
+        assert_eq!(VortexWriter::extract_timezone("2024-03-15T14:30:45Z"), Some("UTC".to_string()));
+        assert_eq!(VortexWriter::extract_timezone("2024-03-15T14:30:45 +02:00"), Some("+02:00".to_string()));
+        assert_eq!(VortexWriter::extract_timezone("2024-03-15T14:30:45+02:00"), Some("+02:00".to_string()));
+        assert_eq!(VortexWriter::extract_timezone("2024-03-15T14:30:45 -05:30"), Some("-05:30".to_string()));
+        assert_eq!(VortexWriter::extract_timezone("2024-03-15T14:30:45"), None);
+    }
+
+    #[test]
+    fn test_parse_tz_offset() {
+        assert_eq!(VortexWriter::parse_tz_offset("+00:00"), Some(0));
+        assert_eq!(VortexWriter::parse_tz_offset("+02:00"), Some(7200));
+        assert_eq!(VortexWriter::parse_tz_offset("-05:00"), Some(-18000));
+        assert_eq!(VortexWriter::parse_tz_offset("+05:30"), Some(19800)); // India
+        assert_eq!(VortexWriter::parse_tz_offset("invalid"), None);
+    }
+
+    #[test]
+    fn test_parse_oracle_tz_format() {
+        // UTC
+        assert_eq!(
+            VortexWriter::parse_oracle_tz_format("1970-01-01T00:00:00Z"),
+            Some(0)
+        );
+        
+        // +02:00 timezone: timestamp given is in +02:00 zone
+        // 1970-01-01T02:00:00+02:00 means 2am in +02:00 zone = midnight UTC
+        // But we're testing with 00:00:00 in +02:00 = 22:00 previous day UTC = -7200 seconds
+        // Actually: 1970-01-01T00:00:00+02:00 = 1969-12-31T22:00:00 UTC = -7200 seconds from epoch
+        assert_eq!(
+            VortexWriter::parse_oracle_tz_format("1970-01-01T00:00:00 +02:00"),
+            Some(-7_200_000_000) // -2 hours in microseconds
+        );
+        
+        // With fractional seconds
+        assert_eq!(
+            VortexWriter::parse_oracle_tz_format("1970-01-01T00:00:00.500000Z"),
+            Some(500_000)
+        );
+    }
+
+    #[test]
+    fn test_is_hex_string() {
+        assert!(VortexWriter::is_hex_string("DEADBEEF"));
+        assert!(VortexWriter::is_hex_string("0123456789ABCDEF"));
+        assert!(!VortexWriter::is_hex_string("00")); // Too short (< 8 chars)
+        assert!(!VortexWriter::is_hex_string("12")); // Too short
+        assert!(!VortexWriter::is_hex_string("G1234567")); // Invalid hex char
+        assert!(!VortexWriter::is_hex_string("1234567")); // Odd length
+        assert!(!VortexWriter::is_hex_string("")); // Empty
+        assert!(!VortexWriter::is_hex_string("Hello World")); // Not hex
+    }
+
+    #[test]
+    fn test_hex_to_binary() {
+        assert_eq!(VortexWriter::hex_to_binary("00"), Some(vec![0x00]));
+        assert_eq!(VortexWriter::hex_to_binary("FF"), Some(vec![0xFF]));
+        assert_eq!(VortexWriter::hex_to_binary("DEADBEEF"), Some(vec![0xDE, 0xAD, 0xBE, 0xEF]));
+        assert_eq!(VortexWriter::hex_to_binary("0123456789ABCDEF"), 
+                   Some(vec![0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF]));
+        assert_eq!(VortexWriter::hex_to_binary("invalid"), None);
+        assert_eq!(VortexWriter::hex_to_binary("123"), None); // Odd length
+    }
+
+    #[test]
+    fn test_infer_dtype_binary() {
+        let value = serde_json::json!("DEADBEEF");
+        let dtype = VortexWriter::infer_dtype(&value);
+        assert!(matches!(dtype, DType::Binary(_)));
+    }
+
+    #[test]
+    fn test_infer_dtype_timestamp_tz() {
+        let value = serde_json::json!("2024-03-15T14:30:45 +02:00");
+        let dtype = VortexWriter::infer_dtype(&value);
+        
+        if let DType::Extension(ext) = &dtype {
+            assert_eq!(ext.id(), &*TIMESTAMP_ID);
+            // Check that timezone metadata is present
+            // (metadata is stored in ext.metadata())
+        } else {
+            panic!("Expected Extension(TIMESTAMP) type with TZ, got {:?}", dtype);
+        }
     }
 }
