@@ -50,6 +50,17 @@ L'exécutable sera disponible dans `target/release/oracle2vortex`.
 
 ### Syntaxe de base
 
+**Option 1 : Utiliser une chaîne de connexion (recommandé)**
+
+```bash
+oracle2vortex \
+  --sql-file query.sql \
+  --output data.vortex \
+  --connect-string "hr/mypassword@//localhost:1521/ORCL"
+```
+
+**Option 2 : Utiliser les composants individuels**
+
 ```bash
 oracle2vortex \
   --sql-file query.sql \
@@ -67,15 +78,18 @@ oracle2vortex \
 |--------|--------|-------------|--------|
 | `--sql-file` | `-f` | Chemin vers le fichier SQL contenant la requête | (requis) |
 | `--output` | `-o` | Chemin du fichier Vortex de sortie | (requis) |
-| `--host` | | Hôte Oracle | (requis) |
+| `--connect-string` | `-c` | Chaîne de connexion Oracle complète (user/password@identifier) | - |
+| `--host` | | Hôte Oracle (requis si pas de --connect-string) | - |
 | `--port` | | Port Oracle | 1521 |
-| `--user` | `-u` | Utilisateur Oracle | (requis) |
-| `--password` | `-p` | Mot de passe Oracle | (requis) |
-| `--sid` | | SID ou nom de service Oracle | (requis) |
+| `--user` | `-u` | Utilisateur Oracle (requis si pas de --connect-string) | - |
+| `--password` | `-p` | Mot de passe Oracle (requis si pas de --connect-string) | - |
+| `--sid` | | SID ou nom de service Oracle (requis si pas de --connect-string) | - |
 | `--sqlcl-path` | | Chemin vers l'exécutable SQLcl | `sql` |
 | `--auto-batch-rows` | | Nombre de lignes par lot (0 = désactivé) | 0 |
 | `--skip-lobs` | | Ignorer les types LOB Oracle (CLOB, BLOB, NCLOB) | false |
 | `--thick` | | Utiliser le driver Oracle Thick (JDBC/OCI) au lieu de Thin | false |
+
+**Note** : Vous pouvez utiliser soit `--connect-string` SOIT les composants individuels (`--user`, `--password`, `--host`, `--sid`), mais pas les deux.
 
 ### Auto-Batching (Grandes Tables)
 

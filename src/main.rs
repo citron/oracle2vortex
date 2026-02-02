@@ -29,7 +29,19 @@ async fn main() -> Result<()> {
     tracing::info!("Starting oracle2vortex");
     tracing::info!("SQL file: {:?}", args.sql_file);
     tracing::info!("Output file: {:?}", args.output);
-    tracing::info!("Oracle: {}@{}:{}/{}", args.user, args.host, args.port, args.sid);
+    
+    // Build connection string from args
+    let connection_string = if let Some(ref connect_str) = args.connect_string {
+        tracing::info!("Oracle: Using connection string");
+        connect_str.clone()
+    } else {
+        let user = args.user.as_ref().unwrap();
+        let password = args.password.as_ref().unwrap();
+        let host = args.host.as_ref().unwrap();
+        let sid = args.sid.as_ref().unwrap();
+        tracing::info!("Oracle: {}@{}:{}/{}", user, host, args.port, sid);
+        format!("{}/{}@//{}:{}/{}", user, password, host, args.port, sid)
+    };
     
     if args.auto_batch_rows > 0 {
         tracing::info!("Mode: AUTO-BATCHING ({} rows per batch)", args.auto_batch_rows);
@@ -52,11 +64,7 @@ async fn main() -> Result<()> {
 
     // Create SQLcl configuration
     let config = SqlclConfig {
-        host: args.host,
-        port: args.port,
-        user: args.user,
-        password: args.password,
-        sid: args.sid,
+        connection_string,
         sqlcl_path: args.sqlcl_path.to_string_lossy().to_string(),
         thick: args.thick,
     };

@@ -3,11 +3,7 @@ use tokio::io::AsyncWriteExt;
 use tokio::process::Command as TokioCommand;
 
 pub struct SqlclConfig {
-    pub host: String,
-    pub port: u16,
-    pub user: String,
-    pub password: String,
-    pub sid: String,
+    pub connection_string: String,  // Either full connect string or built from components
     pub sqlcl_path: String,
     pub thick: bool,
 }
@@ -29,14 +25,8 @@ impl SqlclProcess {
 
         // Send commands to SQLcl via stdin
         if let Some(mut stdin) = child.stdin.take() {
-            // Connect with user/password@//host:port/sid format in one command
-            let full_connect = format!("CONNECT {}/{}@//{}:{}/{}\n", 
-                config.user,
-                config.password,
-                config.host, 
-                config.port, 
-                config.sid
-            );
+            // Connect using the connection string
+            let full_connect = format!("CONNECT {}\n", config.connection_string);
             stdin.write_all(full_connect.as_bytes()).await?;
 
             // Set driver mode if thick is requested

@@ -13,25 +13,31 @@ pub struct CliArgs {
     #[arg(short = 'o', long)]
     pub output: PathBuf,
 
-    /// Oracle host
-    #[arg(long)]
-    pub host: String,
+    /// Complete Oracle connection string (user/password@connect_identifier)
+    /// Example: hr/mypass@//localhost:1521/ORCL
+    /// When provided, --user, --password, --host, --port, and --sid are ignored
+    #[arg(short = 'c', long)]
+    pub connect_string: Option<String>,
+
+    /// Oracle host (required if --connect-string not provided)
+    #[arg(long, required_unless_present = "connect_string")]
+    pub host: Option<String>,
 
     /// Oracle port
     #[arg(long, default_value = "1521")]
     pub port: u16,
 
-    /// Oracle user
-    #[arg(short = 'u', long)]
-    pub user: String,
+    /// Oracle user (required if --connect-string not provided)
+    #[arg(short = 'u', long, required_unless_present = "connect_string")]
+    pub user: Option<String>,
 
-    /// Oracle password
-    #[arg(short = 'p', long)]
-    pub password: String,
+    /// Oracle password (required if --connect-string not provided)
+    #[arg(short = 'p', long, required_unless_present = "connect_string")]
+    pub password: Option<String>,
 
-    /// Oracle SID or service name
-    #[arg(long)]
-    pub sid: String,
+    /// Oracle SID or service name (required if --connect-string not provided)
+    #[arg(long, required_unless_present = "connect_string")]
+    pub sid: Option<String>,
 
     /// Path to SQLcl executable
     #[arg(long, default_value = "sql")]
@@ -68,6 +74,12 @@ impl CliArgs {
 
         if self.output.exists() {
             tracing::warn!("Output file already exists and will be overwritten: {:?}", self.output);
+        }
+
+        // Validate that we have either connect_string OR all individual components
+        if self.connect_string.is_none() && 
+           (self.user.is_none() || self.password.is_none() || self.host.is_none() || self.sid.is_none()) {
+            anyhow::bail!("Either --connect-string or all of (--user, --password, --host, --sid) must be provided");
         }
 
         Ok(())

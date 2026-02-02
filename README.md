@@ -53,6 +53,17 @@ The executable will be available in `target/release/oracle2vortex`.
 
 ### Basic syntax
 
+**Option 1: Using connection string (recommended)**
+
+```bash
+oracle2vortex \
+  --sql-file query.sql \
+  --output data.vortex \
+  --connect-string "hr/mypassword@//localhost:1521/ORCL"
+```
+
+**Option 2: Using individual components**
+
 ```bash
 oracle2vortex \
   --sql-file query.sql \
@@ -70,15 +81,61 @@ oracle2vortex \
 |--------|-------|-------------|---------|
 | `--sql-file` | `-f` | Path to SQL file containing the query | (required) |
 | `--output` | `-o` | Output Vortex file path | (required) |
-| `--host` | | Oracle host | (required) |
+| `--connect-string` | `-c` | Complete Oracle connection string (user/password@identifier) | - |
+| `--host` | | Oracle host (required if no --connect-string) | - |
 | `--port` | | Oracle port | 1521 |
-| `--user` | `-u` | Oracle user | (required) |
-| `--password` | `-p` | Oracle password | (required) |
-| `--sid` | | Oracle SID or service name | (required) |
+| `--user` | `-u` | Oracle user (required if no --connect-string) | - |
+| `--password` | `-p` | Oracle password (required if no --connect-string) | - |
+| `--sid` | | Oracle SID or service name (required if no --connect-string) | - |
 | `--sqlcl-path` | | Path to SQLcl executable | `sql` |
 | `--auto-batch-rows` | | Number of rows per batch (0 = disabled) | 0 |
 | `--skip-lobs` | | Skip Oracle LOB types (CLOB, BLOB, NCLOB) | false |
 | `--thick` | | Use Oracle Thick driver (JDBC/OCI) instead of Thin | false |
+
+**Note**: You can use either `--connect-string` OR the individual components (`--user`, `--password`, `--host`, `--sid`), but not both.
+
+### Connection String Formats
+
+The `--connect-string` option supports multiple Oracle connection formats:
+
+**Easy Connect (recommended):**
+```bash
+--connect-string "user/password@//host:port/service_name"
+--connect-string "hr/mypass@//localhost:1521/ORCL"
+--connect-string "hr/mypass@//db.example.com:1521/PRODDB"
+```
+
+**TNS Alias (requires tnsnames.ora):**
+```bash
+--connect-string "user/password@TNS_ALIAS"
+--connect-string "hr/mypass@PRODUCTION"
+```
+
+**JDBC URL format:**
+```bash
+--connect-string "user/password@jdbc:oracle:thin:@//host:port/service"
+```
+
+**Oracle Wallet (secure, no password):**
+```bash
+--connect-string "/@wallet_alias"  # Password from wallet
+--connect-string "user/@wallet_alias"  # User specified, password from wallet
+```
+
+**Examples with options:**
+```bash
+# Easy Connect with thick driver
+oracle2vortex -f query.sql -o data.vortex \
+  -c "hr/pass@//localhost:1521/ORCL" --thick
+
+# TNS alias with auto-batching
+oracle2vortex -f query.sql -o data.vortex \
+  -c "hr/pass@PROD" --auto-batch-rows 50000
+
+# Wallet connection (most secure)
+oracle2vortex -f query.sql -o data.vortex \
+  -c "/@my_secure_db" --thick
+```
 
 ### Auto-Batching (Large Tables)
 
@@ -89,11 +146,7 @@ To process tables with millions or billions of rows with constant memory usage, 
 oracle2vortex \
   -f query.sql \
   -o data.vortex \
-  --host db.example.com \
-  --port 1521 \
-  -u hr \
-  -p secret123 \
-  --sid PROD \
+  -c "hr/secret123@//db.example.com:1521/PROD" \
   --auto-batch-rows 50000
 ```
 
@@ -122,11 +175,7 @@ Oracle LOB types (CLOB, BLOB, NCLOB) can be very large and may not be needed for
 oracle2vortex \
   -f query.sql \
   -o data.vortex \
-  --host db.example.com \
-  --port 1521 \
-  -u hr \
-  -p secret123 \
-  --sid PROD \
+  -c "hr/secret123@//db.example.com:1521/PROD" \
   --skip-lobs
 ```
 
@@ -151,11 +200,7 @@ By default, SQLcl uses the Oracle Thin driver (pure Java). For better performanc
 oracle2vortex \
   -f query.sql \
   -o data.vortex \
-  --host db.example.com \
-  --port 1521 \
-  -u hr \
-  -p secret123 \
-  --sid PROD \
+  -c "hr/secret123@//db.example.com:1521/PROD" \
   --thick
 ```
 
