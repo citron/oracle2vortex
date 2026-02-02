@@ -239,6 +239,8 @@ Automatic Oracle to Vortex type mapping with optimal storage:
 | `TIMESTAMP` | `"2024-01-15T14:30:45.123456"` | `Extension(Timestamp)` | I64 | Microseconds since epoch |
 | `TIMESTAMP WITH TIME ZONE` | `"2024-01-15T14:30:45.123456 +02:00"` | `Extension(Timestamp)` | I64 | Converted to UTC, timezone in metadata |
 | `TIMESTAMP WITH LOCAL TZ` | Same as TIMESTAMP WITH TZ | `Extension(Timestamp)` | I64 | Converted to session timezone then UTC |
+| `INTERVAL DAY TO SECOND` | `"+02 02:30:00.123456"` | `Primitive(I64)` | I64 | Total microseconds |
+| `INTERVAL YEAR TO MONTH` | `"+01-06"` | `Primitive(I32)` | I32 | Total months |
 | **Numeric Types** |
 | `NUMBER` (integer) | `123` | `Primitive(I64)` | I64 | Whole numbers |
 | `NUMBER` (decimal) | `123.45` | `Primitive(F64)` | F64 | Floating point |
@@ -251,6 +253,9 @@ Automatic Oracle to Vortex type mapping with optimal storage:
 | **Binary Types** |
 | `RAW`, `LONG RAW` | `"DEADBEEF"` (hex) | `Binary` | VarBinArray | Detected if ≥8 hex chars |
 | `BLOB` | `"hex string"` | `Binary` or skip | VarBinArray | Use `--skip-lobs` to exclude |
+| **Structured Types** |
+| `JSON` (Oracle 21c+) | `"{\"key\":\"value\"}"` | `Utf8` | VarBinArray | Validated JSON, kept as string |
+| `XMLTYPE` | `"<root/>"` | `Utf8` | VarBinArray | XML as string |
 | **Other Types** |
 | `ROWID`, `UROWID` | `"AAABbbCCC..."` | `Utf8` | VarBinArray | Oracle-specific format |
 | `BOOLEAN` (via JSON) | `true`/`false` | `Bool` | BitBuffer | Native boolean |

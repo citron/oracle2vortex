@@ -113,6 +113,12 @@ impl VortexWriter {
                         // Fallback if timezone extraction fails
                         DType::Utf8(Nullability::Nullable)
                     }
+                } else if Self::is_interval_day_to_second(s) {
+                    // INTERVAL DAY TO SECOND: +DD HH:MI:SS.FF → I64 microseconds
+                    DType::Primitive(PType::I64, Nullability::Nullable)
+                } else if Self::is_interval_year_to_month(s) {
+                    // INTERVAL YEAR TO MONTH: +YY-MM → I32 months
+                    DType::Primitive(PType::I32, Nullability::Nullable)
                 } else if Self::is_iso_date(s) {
                     // Pure date: YYYY-MM-DD
                     let metadata = TemporalMetadata::Date(TimeUnit::Days);
@@ -134,6 +140,10 @@ impl VortexWriter {
                 } else if Self::is_hex_string(s) {
                     // RAW/LONG RAW data (hex encoded)
                     DType::Binary(Nullability::Nullable)
+                } else if Self::is_valid_json(s) {
+                    // JSON data (Oracle 21c+)
+                    // For now, keep as string - future: could parse structure
+                    DType::Utf8(Nullability::Nullable)
                 } else {
                     DType::Utf8(Nullability::Nullable)
                 }
@@ -297,6 +307,105 @@ impl VortexWriter {
         Some(bytes)
     }
 
+    /// Check if a string is an INTERVAL DAY TO SECOND (Oracle format: +DD HH:MI:SS.FF)
+    fn is_interval_day_to_second(s: &str) -> bool {
+        // Pattern: [+-]DD HH:MM:SS.FFFFFF
+        // Examples: +00 02:30:00.000000, +05 12:00:00.123456, -00 01:00:00.000000
+        // Length: + or - (1) + DD (2) + space (1) + HH (2) + : (1) + MM (2) + : (1) + SS (2) + . (1) + FFFFFF (6) = 19
+        if s.len() != 19 {
+            return false;
+        }
+        
+        // Check structure: [+-]DD HH:MM:SS.FFFFFF
+        let chars: Vec<char> = s.chars().collect();
+        (chars[0] == '+' || chars[0] == '-') &&
+        chars[3] == ' ' &&
+        chars[6] == ':' &&
+        chars[9] == ':' &&
+        chars[12] == '.' &&
+        chars[1..3].iter().all(|c| c.is_ascii_digit()) &&
+        chars[4..6].iter().all(|c| c.is_ascii_digit()) &&
+        chars[7..9].iter().all(|c| c.is_ascii_digit()) &&
+        chars[10..12].iter().all(|c| c.is_ascii_digit()) &&
+        chars[13..19].iter().all(|c| c.is_ascii_digit())
+    }
+
+    /// Parse INTERVAL DAY TO SECOND to microseconds
+    fn parse_interval_day_to_second(s: &str) -> Option<i64> {
+        if !Self::is_interval_day_to_second(s) {
+            return None;
+        }
+        
+        let sign = if s.starts_with('-') { -1i64 } else { 1i64 };
+        
+        // Parse: [+-]DD HH:MM:SS.FFFFFF
+        let parts: Vec<&str> = s[1..].split(&[' ', ':', '.'][..]).collect();
+        if parts.len() != 5 {
+            return None;
+        }
+        
+        let days: i64 = parts[0].parse().ok()?;
+        let hours: i64 = parts[1].parse().ok()?;
+        let minutes: i64 = parts[2].parse().ok()?;
+        let seconds: i64 = parts[3].parse().ok()?;
+        let micros: i64 = parts[4].parse().ok()?;
+        
+        // Convert to total microseconds
+        let total_micros = days * 86_400_000_000 +  // days to microseconds
+                          hours * 3_600_000_000 +    // hours to microseconds
+                          minutes * 60_000_000 +     // minutes to microseconds
+                          seconds * 1_000_000 +      // seconds to microseconds
+                          micros;
+        
+        Some(sign * total_micros)
+    }
+
+    /// Check if a string is an INTERVAL YEAR TO MONTH (Oracle format: +YY-MM)
+    fn is_interval_year_to_month(s: &str) -> bool {
+        // Pattern: [+-]YY-MM
+        // Examples: +01-06, +00-03, -00-01
+        if s.len() != 6 {
+            return false;
+        }
+        
+        let chars: Vec<char> = s.chars().collect();
+        (chars[0] == '+' || chars[0] == '-') &&
+        chars[3] == '-' &&
+        chars[1..3].iter().all(|c| c.is_ascii_digit()) &&
+        chars[4..6].iter().all(|c| c.is_ascii_digit())
+    }
+
+    /// Parse INTERVAL YEAR TO MONTH to total months
+    fn parse_interval_year_to_month(s: &str) -> Option<i32> {
+        if !Self::is_interval_year_to_month(s) {
+            return None;
+        }
+        
+        let sign = if s.starts_with('-') { -1i32 } else { 1i32 };
+        
+        // Parse: [+-]YY-MM
+        let parts: Vec<&str> = s[1..].split('-').collect();
+        if parts.len() != 2 {
+            return None;
+        }
+        
+        let years: i32 = parts[0].parse().ok()?;
+        let months: i32 = parts[1].parse().ok()?;
+        
+        Some(sign * (years * 12 + months))
+    }
+
+    /// Check if a string is valid JSON
+    fn is_valid_json(s: &str) -> bool {
+        // Quick check: must start with { or [
+        if !s.starts_with('{') && !s.starts_with('[') {
+            return false;
+        }
+        
+        // Try to parse as JSON
+        serde_json::from_str::<serde_json::Value>(s).is_ok()
+    }
+
     /// Parse ISO 8601 date to days since epoch
     fn parse_date_to_days(s: &str) -> Option<i32> {
         let date = Date::strptime("%Y-%m-%d", s).ok()?;
@@ -374,6 +483,58 @@ impl VortexWriter {
                                     Value::Number(n) => {
                                         values.push(n.as_i64().unwrap_or(0));
                                         validity.push(true);
+                                    }
+                                    Value::String(s) => {
+                                        // Could be INTERVAL DAY TO SECOND
+                                        if let Some(micros) = Self::parse_interval_day_to_second(s) {
+                                            values.push(micros);
+                                            validity.push(true);
+                                        } else {
+                                            values.push(0);
+                                            validity.push(false);
+                                        }
+                                    }
+                                    Value::Null => {
+                                        values.push(0);
+                                        validity.push(false);
+                                    }
+                                    _ => {
+                                        values.push(0);
+                                        validity.push(false);
+                                    }
+                                }
+                            } else {
+                                values.push(0);
+                                validity.push(false);
+                            }
+                        }
+                    }
+
+                    let buffer = Buffer::from(values);
+                    let validity: Validity = validity.into_iter().collect();
+                    PrimitiveArray::new(buffer, validity).into_array()
+                }
+                DType::Primitive(PType::I32, _) => {
+                    let mut values = Vec::with_capacity(self.records.len());
+                    let mut validity = Vec::with_capacity(self.records.len());
+
+                    for record in &self.records {
+                        if let Some(obj) = record.as_object() {
+                            if let Some(val) = obj.get(field_name) {
+                                match val {
+                                    Value::Number(n) => {
+                                        values.push(n.as_i64().unwrap_or(0) as i32);
+                                        validity.push(true);
+                                    }
+                                    Value::String(s) => {
+                                        // Could be INTERVAL YEAR TO MONTH
+                                        if let Some(months) = Self::parse_interval_year_to_month(s) {
+                                            values.push(months);
+                                            validity.push(true);
+                                        } else {
+                                            values.push(0);
+                                            validity.push(false);
+                                        }
                                     }
                                     Value::Null => {
                                         values.push(0);
@@ -831,5 +992,97 @@ mod tests {
         } else {
             panic!("Expected Extension(TIMESTAMP) type with TZ, got {:?}", dtype);
         }
+    }
+
+    #[test]
+    fn test_is_interval_day_to_second() {
+        assert!(VortexWriter::is_interval_day_to_second("+00 02:30:00.000000"));
+        assert!(VortexWriter::is_interval_day_to_second("+05 12:00:00.123456"));
+        assert!(VortexWriter::is_interval_day_to_second("-00 01:00:00.000000"));
+        assert!(!VortexWriter::is_interval_day_to_second("+00 02:30:00")); // Missing fractional
+        assert!(!VortexWriter::is_interval_day_to_second("not an interval"));
+    }
+
+    #[test]
+    fn test_parse_interval_day_to_second() {
+        // 2h 30min = 2*3600 + 30*60 = 9000 seconds = 9,000,000,000 microseconds
+        assert_eq!(
+            VortexWriter::parse_interval_day_to_second("+00 02:30:00.000000"),
+            Some(9_000_000_000)
+        );
+        
+        // 5 days + 12 hours = (5*24 + 12) * 3600 = 475,200 seconds
+        assert_eq!(
+            VortexWriter::parse_interval_day_to_second("+05 12:00:00.000000"),
+            Some(475_200_000_000)
+        );
+        
+        // Negative: -1 hour
+        assert_eq!(
+            VortexWriter::parse_interval_day_to_second("-00 01:00:00.000000"),
+            Some(-3_600_000_000)
+        );
+        
+        // With fractional seconds: 1 second + 500,000 microseconds
+        assert_eq!(
+            VortexWriter::parse_interval_day_to_second("+00 00:00:01.500000"),
+            Some(1_500_000)
+        );
+    }
+
+    #[test]
+    fn test_is_interval_year_to_month() {
+        assert!(VortexWriter::is_interval_year_to_month("+01-06"));
+        assert!(VortexWriter::is_interval_year_to_month("+00-03"));
+        assert!(VortexWriter::is_interval_year_to_month("-00-01"));
+        assert!(!VortexWriter::is_interval_year_to_month("+1-6")); // Missing leading zeros
+        assert!(!VortexWriter::is_interval_year_to_month("not an interval"));
+    }
+
+    #[test]
+    fn test_parse_interval_year_to_month() {
+        // 1 year 6 months = 18 months
+        assert_eq!(VortexWriter::parse_interval_year_to_month("+01-06"), Some(18));
+        
+        // 3 months
+        assert_eq!(VortexWriter::parse_interval_year_to_month("+00-03"), Some(3));
+        
+        // Negative: -1 month
+        assert_eq!(VortexWriter::parse_interval_year_to_month("-00-01"), Some(-1));
+        
+        // 2 years = 24 months
+        assert_eq!(VortexWriter::parse_interval_year_to_month("+02-00"), Some(24));
+    }
+
+    #[test]
+    fn test_is_valid_json() {
+        assert!(VortexWriter::is_valid_json(r#"{"key": "value"}"#));
+        assert!(VortexWriter::is_valid_json(r#"[1, 2, 3]"#));
+        assert!(VortexWriter::is_valid_json(r#"{"nested": {"obj": true}}"#));
+        assert!(!VortexWriter::is_valid_json("not json"));
+        assert!(!VortexWriter::is_valid_json("{invalid json}"));
+        assert!(!VortexWriter::is_valid_json("just a string"));
+    }
+
+    #[test]
+    fn test_infer_dtype_interval_day_second() {
+        let value = serde_json::json!("+05 12:00:00.123456");
+        let dtype = VortexWriter::infer_dtype(&value);
+        assert!(matches!(dtype, DType::Primitive(PType::I64, _)));
+    }
+
+    #[test]
+    fn test_infer_dtype_interval_year_month() {
+        let value = serde_json::json!("+01-06");
+        let dtype = VortexWriter::infer_dtype(&value);
+        assert!(matches!(dtype, DType::Primitive(PType::I32, _)));
+    }
+
+    #[test]
+    fn test_infer_dtype_json() {
+        let value = serde_json::json!(r#"{"key": "value"}"#);
+        let dtype = VortexWriter::infer_dtype(&value);
+        // JSON is kept as Utf8 for now
+        assert!(matches!(dtype, DType::Utf8(_)));
     }
 }

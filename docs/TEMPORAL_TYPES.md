@@ -112,9 +112,9 @@ Added match branches in the `flush()` method to handle:
 
 ### Unit Tests
 
-Added 17 comprehensive unit tests in `src/vortex_writer.rs`:
+Added 25 comprehensive unit tests in `src/vortex_writer.rs`:
 
-**Temporal Tests:**
+**Temporal Tests (6):**
 1. `test_is_iso_date()` - Validates date pattern detection
 2. `test_is_iso_timestamp()` - Validates timestamp pattern detection  
 3. `test_parse_date_to_days()` - Validates date conversion
@@ -122,24 +122,36 @@ Added 17 comprehensive unit tests in `src/vortex_writer.rs`:
 5. `test_infer_dtype_date()` - Validates type inference for dates
 6. `test_infer_dtype_timestamp()` - Validates type inference for timestamps
 
-**Timezone Tests:**
+**Timezone Tests (4):**
 7. `test_is_iso_timestamp_tz()` - Validates TZ timestamp detection
 8. `test_extract_timezone()` - Validates timezone extraction
 9. `test_parse_tz_offset()` - Validates offset parsing
 10. `test_parse_oracle_tz_format()` - Validates TZ conversion to UTC
 
-**Binary Tests:**
+**Binary Tests (4):**
 11. `test_is_hex_string()` - Validates hex string detection
 12. `test_hex_to_binary()` - Validates hex to binary conversion
 13. `test_infer_dtype_binary()` - Validates Binary type inference
 14. `test_infer_dtype_timestamp_tz()` - Validates TZ timestamp inference
 
-**General Tests:**
-15. `test_infer_dtype_string()` - Ensures non-temporal strings still work
-16. `test_infer_dtype_number()` - Ensures numeric types still work
-17. `test_infer_dtype_float()` - Ensures float types still work
+**INTERVAL Tests (6):**
+15. `test_is_interval_day_to_second()` - Validates INTERVAL DS detection
+16. `test_is_interval_year_to_month()` - Validates INTERVAL YM detection
+17. `test_parse_interval_day_to_second()` - Validates INTERVAL DS parsing
+18. `test_parse_interval_year_to_month()` - Validates INTERVAL YM parsing
+19. `test_infer_dtype_interval_day_second()` - Validates INTERVAL DS type inference
+20. `test_infer_dtype_interval_year_month()` - Validates INTERVAL YM type inference
 
-All tests pass: ✅ `cargo test` - **17 passed; 0 failed**
+**JSON Tests (2):**
+21. `test_is_valid_json()` - Validates JSON detection
+22. `test_infer_dtype_json()` - Validates JSON kept as Utf8
+
+**General Tests (3):**
+23. `test_infer_dtype_string()` - Ensures non-temporal strings still work
+24. `test_infer_dtype_number()` - Ensures numeric types still work
+25. `test_infer_dtype_float()` - Ensures float types still work
+
+All tests pass: ✅ `cargo test` - **25 passed; 0 failed**
 
 ### Integration Test Queries
 

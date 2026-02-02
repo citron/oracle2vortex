@@ -36,6 +36,11 @@ This document provides comprehensive information about how Oracle data types are
 | **BLOB** | Binary large object | `"hexstring"` | `Binary` or skip | VarBinArray | Variable | Use `--skip-lobs` |
 | **ROWID** | Internal ID | `"AAABbbCCCddd"` | `Utf8` | VarBinArray | ~18 bytes | Oracle-specific format |
 | **UROWID** | Universal ROWID | `"AAABbb..."` | `Utf8` | VarBinArray | Variable | Logical format |
+| **INTERVAL DAY TO SECOND** | `INTERVAL '2 02:30:00.123456' DAY TO SECOND` | `"+02 02:30:00.123456"` | `Primitive(I64)` | I64 | 8 bytes | Total microseconds |
+| **INTERVAL YEAR TO MONTH** | `INTERVAL '1-6' YEAR TO MONTH` | `"+01-06"` | `Primitive(I32)` | I32 | 4 bytes | Total months |
+| **JSON** (Oracle 21c+) | `JSON '{"key":"value"}'` | `"{\"key\":\"value\"}"` | `Utf8` | VarBinArray | Variable | Validated JSON, kept as string |
+| **XMLTYPE** | `XMLTYPE('<root/>')` | `"<root/>"` | `Utf8` | VarBinArray | Variable | XML as string |
+| **Spatial (SDO_GEOMETRY)** | Geometry | WKT/JSON format | `Utf8` | VarBinArray | Variable | Oracle-specific format |
 
 ## Detection Algorithms
 
@@ -130,6 +135,68 @@ fn is_hex_string(s: &str) -> bool {
 - ❌ `"ABCD"` (too short)
 - ❌ `"G1234567"` (invalid hex char 'G')
 
+### INTERVAL Type Detection
+
+#### INTERVAL DAY TO SECOND
+```rust
+fn is_interval_day_to_second(s: &str) -> bool {
+    // Pattern: [+-]DD HH:MM:SS.FFFFFF (19 chars)
+    s.len() == 19 
+    && (s.starts_with('+') || s.starts_with('-'))
+    && s.chars().nth(3) == Some(' ')
+    && s.chars().nth(6) == Some(':')
+    && s.chars().nth(9) == Some(':')
+    && s.chars().nth(12) == Some('.')
+}
+```
+
+**Pattern**: `[+-]DD HH:MM:SS.FFFFFF`
+
+**Examples**:
+- ✅ `"+00 02:30:00.000000"` → 9,000,000,000 microseconds (2.5 hours)
+- ✅ `"+05 12:00:00.123456"` → 475,200,123,456 microseconds
+- ✅ `"-00 01:00:00.000000"` → -3,600,000,000 microseconds
+- ❌ `"+2 2:30:0"` (missing leading zeros)
+
+**Conversion**: 
+```rust
+total_micros = (days * 86400 + hours * 3600 + mins * 60 + secs) * 1_000_000 + fractional_micros
+```
+
+#### INTERVAL YEAR TO MONTH
+```rust
+fn is_interval_year_to_month(s: &str) -> bool {
+    // Pattern: [+-]YY-MM (6 chars)
+    s.len() == 6
+    && (s.starts_with('+') || s.starts_with('-'))
+    && s.chars().nth(3) == Some('-')
+}
+```
+
+**Pattern**: `[+-]YY-MM`
+
+**Examples**:
+- ✅ `"+01-06"` → 18 months
+- ✅ `"+00-03"` → 3 months
+- ✅ `"-00-12"` → -12 months
+- ❌ `"+1-6"` (missing leading zeros)
+
+**Conversion**:
+```rust
+total_months = years * 12 + months
+```
+
+### JSON Validation
+
+```rust
+fn is_valid_json(s: &str) -> bool {
+    (s.starts_with('{') || s.starts_with('[')) 
+    && serde_json::from_str::<serde_json::Value>(s).is_ok()
+}
+```
+
+**Note**: JSON is validated but currently stored as `Utf8` string. Future enhancement may parse structure into `DType::List` or `DType::Struct`.
+
 ## SQLcl Configuration
 
 All type conversions rely on proper SQLcl session configuration:
@@ -167,6 +234,9 @@ These configurations ensure:
 |------|----------------|--------------|----------------|-----------------|
 | DATE | 7 bytes | ~10 bytes (string) | 4 bytes (I32) | **60% reduction** |
 | TIMESTAMP | 11 bytes | ~26 bytes (string) | 8 bytes (I64) | **69% reduction** |
+| TIMESTAMP TZ | 13 bytes | ~36 bytes (string) | 8 bytes (I64) | **78% reduction** |
+| INTERVAL DS | ~11 bytes | ~19 bytes (string) | 8 bytes (I64) | **58% reduction** |
+| INTERVAL YM | ~5 bytes | ~6 bytes (string) | 4 bytes (I32) | **33% reduction** |
 | NUMBER(10,2) | ~6 bytes | ~10 bytes (string) | 8 bytes (F64) | 20% reduction |
 | RAW(16) | 16 bytes | 32 bytes (hex string) | 16 bytes (binary) | **50% reduction** |
 | VARCHAR2(100) | Variable | Variable + quotes | Variable | Similar |
@@ -177,18 +247,35 @@ These configurations ensure:
 3. Numeric types: Consistent 8 bytes vs variable string length
 4. **Type safety**: Prevents incorrect operations (e.g., adding dates as strings)
 
+## Supported Types Summary
+
+### ✅ Fully Optimized (Native Vortex Types)
+- **Temporal**: DATE, TIMESTAMP, TIMESTAMP WITH [LOCAL] TIME ZONE
+- **Numeric**: NUMBER (integer/decimal), BINARY_FLOAT, BINARY_DOUBLE
+- **Binary**: RAW, LONG RAW, BLOB (as binary)
+- **Intervals**: INTERVAL DAY TO SECOND, INTERVAL YEAR TO MONTH
+- **String**: VARCHAR2, NVARCHAR2, CHAR, NCHAR, CLOB, NCLOB
+- **Boolean**: BOOLEAN (Oracle 23c+)
+
+### ⚠️ Supported as String (Optimization Possible)
+- **JSON** (Oracle 21c+): Validated but kept as string (could be parsed to structure)
+- **XMLTYPE**: Kept as string (could be parsed to structure)
+- **Spatial**: SDO_GEOMETRY, etc. (Oracle-specific format)
+- **Collections**: VARRAY, NESTED TABLE (could be mapped to `DType::List`)
+- **System**: ROWID, UROWID (Oracle-specific identifiers)
+
 ## Future Enhancements
 
 ### Planned
-1. **Decimal Precision**: Use `DType::Decimal` for `NUMBER(p,s)` with fixed scale
-2. **INTERVAL Types**: Support `INTERVAL DAY TO SECOND` and `INTERVAL YEAR TO MONTH`
-3. **JSON Type**: Parse Oracle 21c+ JSON columns into structured data
-4. **Spatial Types**: Detect and optimize `SDO_GEOMETRY` (possibly as Binary WKB)
+1. **Decimal Precision**: Use `DType::Decimal` for `NUMBER(p,s)` with fixed scale (avoid F64 precision loss)
+2. **Structured JSON**: Parse Oracle 21c+ JSON columns into `DType::Struct`/`DType::List`
+3. **Spatial Optimization**: Detect and optimize `SDO_GEOMETRY` (possibly as Binary WKB)
 
 ### Under Consideration
 1. **Collection Types**: Map `VARRAY` and `NESTED TABLE` to `DType::List`
-2. **XMLTYPE**: Parse XML into structured format
+2. **XMLTYPE Parsing**: Convert XML to structured format
 3. **Custom Types**: User-defined types via introspection
+4. **INTERVAL Extension**: Custom extension types instead of primitives for richer metadata
 
 ## Limitations
 
