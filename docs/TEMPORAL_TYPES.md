@@ -114,26 +114,48 @@ Added match branches in the `flush()` method to handle:
 
 Added 17 comprehensive unit tests in `src/vortex_writer.rs`:
 
+**Temporal Tests:**
 1. `test_is_iso_date()` - Validates date pattern detection
-2. `test_is_iso_timestamp()` - Validates timestamp pattern detection
+2. `test_is_iso_timestamp()` - Validates timestamp pattern detection  
 3. `test_parse_date_to_days()` - Validates date conversion
 4. `test_parse_timestamp_to_micros()` - Validates timestamp conversion
 5. `test_infer_dtype_date()` - Validates type inference for dates
 6. `test_infer_dtype_timestamp()` - Validates type inference for timestamps
-7. `test_infer_dtype_string()` - Ensures non-temporal strings still work
-8. `test_infer_dtype_number()` - Ensures numeric types still work
-9. `test_infer_dtype_float()` - Ensures float types still work
 
-All tests pass: ✅ `cargo test` - 9 passed; 0 failed
+**Timezone Tests:**
+7. `test_is_iso_timestamp_tz()` - Validates TZ timestamp detection
+8. `test_extract_timezone()` - Validates timezone extraction
+9. `test_parse_tz_offset()` - Validates offset parsing
+10. `test_parse_oracle_tz_format()` - Validates TZ conversion to UTC
 
-### Integration Test Query
+**Binary Tests:**
+11. `test_is_hex_string()` - Validates hex string detection
+12. `test_hex_to_binary()` - Validates hex to binary conversion
+13. `test_infer_dtype_binary()` - Validates Binary type inference
+14. `test_infer_dtype_timestamp_tz()` - Validates TZ timestamp inference
 
-Created `tests_local/test_temporal.sql` with examples of:
+**General Tests:**
+15. `test_infer_dtype_string()` - Ensures non-temporal strings still work
+16. `test_infer_dtype_number()` - Ensures numeric types still work
+17. `test_infer_dtype_float()` - Ensures float types still work
+
+All tests pass: ✅ `cargo test` - **17 passed; 0 failed**
+
+### Integration Test Queries
+
+**`tests_local/test_temporal.sql`** - Temporal types:
 - Pure DATE literals
 - TIMESTAMP literals with fractional seconds
+- TIMESTAMP WITH TIME ZONE (positive and negative offsets)
 - SYSDATE and SYSTIMESTAMP
+- RAW/Binary data (HEXTORAW)
 - NULL temporal values
 - Mixed with other data types
+
+**`tests_local/test_all_types.sql`** - Comprehensive coverage:
+- All major Oracle types
+- Edge cases and boundary values
+- Multiple rows for consistency testing
 
 ## Benefits
 

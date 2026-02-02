@@ -55,7 +55,7 @@ impl JsonStreamReader {
 
         // Parse the JSON structure
         let parsed: Value = serde_json::from_str(json_content)
-            .map_err(|e| {
+            .inspect_err(|_| {
                 // If JSON parsing fails, log what we tried to parse for debugging
                 tracing::error!("Failed to parse JSON. First 500 chars: {}", 
                     if json_content.len() > 500 {
@@ -65,7 +65,6 @@ impl JsonStreamReader {
                     }
                 );
                 tracing::error!("Full output length: {} bytes", full_output.len());
-                e
             })?;
 
         // Extract records from SQLcl's structure: {"results":[{"items":[...]}]}

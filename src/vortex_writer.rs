@@ -216,9 +216,9 @@ impl VortexWriter {
         // Split timestamp and timezone
         let parts: Vec<&str> = if s.contains(" +") || s.contains(" -") {
             s.splitn(2, ' ').collect()
-        } else if s.ends_with('Z') {
+        } else if let Some(stripped) = s.strip_suffix('Z') {
             // UTC timezone, just remove Z and parse
-            return Self::parse_timestamp_to_micros(&s[..s.len()-1]);
+            return Self::parse_timestamp_to_micros(stripped);
         } else {
             // Find last + or - that's not part of the date
             if let Some(pos) = s.rfind('+').or_else(|| s.rfind('-').filter(|&p| p > 19)) {
@@ -249,10 +249,10 @@ impl VortexWriter {
         let tz = tz.trim();
         
         // Check if it starts with + or -
-        let (sign, offset_str) = if tz.starts_with('+') {
-            (1i64, &tz[1..])
-        } else if tz.starts_with('-') {
-            (-1i64, &tz[1..])
+        let (sign, offset_str) = if let Some(stripped) = tz.strip_prefix('+') {
+            (1i64, stripped)
+        } else if let Some(stripped) = tz.strip_prefix('-') {
+            (-1i64, stripped)
         } else {
             return None;
         };
@@ -274,7 +274,7 @@ impl VortexWriter {
         // Oracle RAW is exported as uppercase hex
         // Minimum reasonable length: 8 chars (4 bytes) to avoid false positives with small numbers
         // Must be even length (each byte = 2 hex chars)
-        if s.len() < 8 || s.len() % 2 != 0 {
+        if s.len() < 8 || !s.len().is_multiple_of(2) {
             return false;
         }
         
@@ -284,7 +284,7 @@ impl VortexWriter {
 
     /// Convert hex string to binary data
     fn hex_to_binary(s: &str) -> Option<Vec<u8>> {
-        if s.len() % 2 != 0 {
+        if !s.len().is_multiple_of(2) {
             return None;
         }
         
@@ -301,7 +301,7 @@ impl VortexWriter {
     fn parse_date_to_days(s: &str) -> Option<i32> {
         let date = Date::strptime("%Y-%m-%d", s).ok()?;
         let epoch = Date::new(1970, 1, 1).ok()?;
-        date.since(epoch).ok()?.get_days().try_into().ok()
+        Some(date.since(epoch).ok()?.get_days())
     }
 
     /// Parse ISO 8601 timestamp to microseconds since epoch
@@ -357,7 +357,7 @@ impl VortexWriter {
             // Infer dtype from first non-null value
             let dtype = self.records.iter()
                 .find_map(|r| r.as_object()?.get(field_name))
-                .map(|v| Self::infer_dtype(v))
+                .map(Self::infer_dtype)
                 .unwrap_or(DType::Utf8(Nullability::Nullable));
 
             tracing::debug!("Field '{}': dtype={:?}, len={}", field_name, dtype, self.records.len());
