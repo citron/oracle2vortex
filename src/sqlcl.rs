@@ -9,6 +9,7 @@ pub struct SqlclConfig {
     pub password: String,
     pub sid: String,
     pub sqlcl_path: String,
+    pub thick: bool,
 }
 
 pub struct SqlclProcess {
@@ -37,6 +38,12 @@ impl SqlclProcess {
                 config.sid
             );
             stdin.write_all(full_connect.as_bytes()).await?;
+
+            // Set driver mode if thick is requested
+            if config.thick {
+                tracing::info!("Enabling Oracle Thick driver");
+                stdin.write_all(b"SET DRIVER THICK\n").await?;
+            }
 
             // Optimisation de l'affichage pour l'export fichier
             stdin.write_all(b"SET FEEDBACK OFF\n").await?;      // Masque "X rows selected"

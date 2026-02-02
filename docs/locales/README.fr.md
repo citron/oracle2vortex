@@ -75,6 +75,7 @@ oracle2vortex \
 | `--sqlcl-path` | | Chemin vers l'exécutable SQLcl | `sql` |
 | `--auto-batch-rows` | | Nombre de lignes par lot (0 = désactivé) | 0 |
 | `--skip-lobs` | | Ignorer les types LOB Oracle (CLOB, BLOB, NCLOB) | false |
+| `--thick` | | Utiliser le driver Oracle Thick (JDBC/OCI) au lieu de Thin | false |
 
 ### Auto-Batching (Grandes Tables)
 

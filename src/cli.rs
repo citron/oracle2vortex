@@ -49,6 +49,11 @@ pub struct CliArgs {
     /// Skip Oracle LOB types (CLOB, BLOB, NCLOB) - exclude them from the output
     #[arg(long, default_value = "false")]
     pub skip_lobs: bool,
+
+    /// Use Oracle Thick driver (JDBC/OCI) instead of Thin driver
+    /// Enables features like connection pooling, advanced security, and better performance
+    #[arg(long, default_value = "false")]
+    pub thick: bool,
 }
 
 impl CliArgs {

@@ -43,6 +43,12 @@ async fn main() -> Result<()> {
     if args.skip_lobs {
         tracing::info!("LOB filtering: ENABLED (CLOB, BLOB, NCLOB columns will be skipped)");
     }
+    
+    if args.thick {
+        tracing::info!("Oracle driver: THICK (JDBC/OCI mode)");
+    } else {
+        tracing::info!("Oracle driver: THIN (default mode)");
+    }
 
     // Create SQLcl configuration
     let config = SqlclConfig {
@@ -52,6 +58,7 @@ async fn main() -> Result<()> {
         password: args.password,
         sid: args.sid,
         sqlcl_path: args.sqlcl_path.to_string_lossy().to_string(),
+        thick: args.thick,
     };
 
     // Create and run pipeline

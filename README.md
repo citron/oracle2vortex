@@ -78,6 +78,7 @@ oracle2vortex \
 | `--sqlcl-path` | | Path to SQLcl executable | `sql` |
 | `--auto-batch-rows` | | Number of rows per batch (0 = disabled) | 0 |
 | `--skip-lobs` | | Skip Oracle LOB types (CLOB, BLOB, NCLOB) | false |
+| `--thick` | | Use Oracle Thick driver (JDBC/OCI) instead of Thin | false |
 
 ### Auto-Batching (Large Tables)
 
@@ -140,6 +141,44 @@ oracle2vortex \
 - Working with tables containing XML or large JSON documents
 - Focusing on structured data while ignoring binary content
 - Performance optimization for tables with many large columns
+
+### Using Oracle Thick Driver
+
+By default, SQLcl uses the Oracle Thin driver (pure Java). For better performance and advanced features, use the Thick driver:
+
+```bash
+# Use Thick driver for better performance
+oracle2vortex \
+  -f query.sql \
+  -o data.vortex \
+  --host db.example.com \
+  --port 1521 \
+  -u hr \
+  -p secret123 \
+  --sid PROD \
+  --thick
+```
+
+**Oracle Thick Driver Benefits:**
+- **Better Performance**: Uses native Oracle Client libraries (OCI)
+- **Connection Pooling**: More efficient connection management
+- **Advanced Security**: Supports Oracle Wallet, Kerberos, and other advanced authentication
+- **Better LOB Handling**: More efficient streaming of large objects
+- **Oracle RAC Support**: Better failover and load balancing with Real Application Clusters
+
+**Requirements:**
+- Oracle Instant Client or Oracle Client must be installed
+- LD_LIBRARY_PATH (Linux) or PATH (Windows) must include Oracle libraries
+- Compatible with Oracle Database 11g and later
+
+**When to use Thick driver:**
+- Large data exports (millions of rows)
+- High-security environments requiring Oracle Wallet
+- Oracle RAC deployments
+- When maximum performance is needed
+- Working with large LOBs (even with `--skip-lobs`)
+
+**Note**: If Oracle Client libraries are not found, SQLcl will fall back to Thin driver automatically.
 
 ### Example with SQL file
 
@@ -214,6 +253,7 @@ oracle2vortex \
 1. **SQL Reading**: The SQL file is loaded into memory
 2. **SQLcl Launch**: Process starts with Oracle connection
 3. **Session configuration**:
+   - `SET DRIVER THICK` (if `--thick` option is used)
    - `SET SQLFORMAT JSON` for JSON export
    - `SET NLS_NUMERIC_CHARACTERS='.,';` for decimal point compatibility
    - `SET NLS_DATE_FORMAT='YYYY-MM-DD"T"HH24:MI:SS';` for ISO 8601 date format
