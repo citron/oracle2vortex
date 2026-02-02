@@ -15,3 +15,7 @@ test_*.sql
 *.credentials
 
 tests_local/
+
+# Generated HTML documentation
+*.html
+*_files/

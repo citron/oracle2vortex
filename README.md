@@ -263,6 +263,10 @@ Automatic Oracle to Vortex type mapping with optimal storage:
 
 **Note**: All types are nullable to handle Oracle NULL values.
 
+**For detailed type mapping algorithms and detection logic, see:**
+- [`docs/ORACLE_TYPE_MAPPING.md`](docs/ORACLE_TYPE_MAPPING.md) - Complete technical reference with detection algorithms
+- [`docs/TEMPORAL_TYPES.md`](docs/TEMPORAL_TYPES.md) - Temporal types implementation details and testing
+
 ### Temporal Types with Timezone Support
 
 Oracle temporal columns are automatically detected and converted to native Vortex temporal types:

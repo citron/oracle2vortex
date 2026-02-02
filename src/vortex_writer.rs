@@ -170,7 +170,7 @@ impl VortexWriter {
         
         // Check if it has timezone (would be handled by is_iso_timestamp_tz)
         let has_tz = s.ends_with('Z') || 
-                      s.contains("+") && s.rfind('+').unwrap() > 19 ||
+                      s.rfind('+').map(|i| i > 19).unwrap_or(false) ||
                       s.matches('-').count() > 2; // More than date hyphens = timezone
         
         if has_tz {

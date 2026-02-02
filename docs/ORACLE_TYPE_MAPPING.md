@@ -44,6 +44,21 @@ This document provides comprehensive information about how Oracle data types are
 
 ## Detection Algorithms
 
+### Detection Priority Order
+
+Type detection follows a priority cascade from most specific to least specific:
+
+1. **TIMESTAMP WITH TIME ZONE** - Contains `T` and timezone indicator (`Z`, `+`, or `-` after position 19)
+2. **INTERVAL DAY TO SECOND** - Format `[+-]DD HH:MM:SS.FFFFFF` (19 chars)
+3. **INTERVAL YEAR TO MONTH** - Format `[+-]YY-MM` (6 chars)
+4. **DATE** - Format `YYYY-MM-DD` (10 chars, no time component)
+5. **TIMESTAMP** - Format `YYYY-MM-DDTHH:MM:SS[.ffffff]` (has `T`, no timezone)
+6. **Binary (RAW/BLOB)** - Hexadecimal string (≥8 chars, all hex digits, even length)
+7. **JSON** - Starts with `{` or `[` and valid JSON parse
+8. **UTF-8 String** - Fallback for all other strings
+
+This order ensures that more specific patterns (e.g., timestamp with timezone) are detected before less specific ones (e.g., plain timestamp), preventing false positives.
+
 ### Temporal Type Detection
 
 #### DATE Detection
@@ -283,7 +298,8 @@ These configurations ensure:
 2. **Decimal Precision**: `NUMBER(p,s)` uses F64, may lose precision beyond 15 digits
 3. **LOB Detection**: Heuristic-based (>4000 chars), can be overridden with `--skip-lobs`
 4. **Hex Detection**: Minimum 8 characters may miss very short RAW values (use Utf8 fallback)
-5. **INTERVAL Types**: Currently stored as strings (future: I64 microseconds/months)
+5. **JSON Parsing**: JSON is validated but stored as string (future: parse to structured types)
+6. **INTERVAL Metadata**: INTERVAL types use primitive I64/I32 without extension metadata (future: custom extension types)
 
 ## Testing
 
@@ -298,7 +314,15 @@ Run with:
 cargo test --bin oracle2vortex
 ```
 
-Current test coverage: **17 unit tests**, all passing ✅
+Current test coverage: **25 unit tests**, all passing ✅
+
+**Test Categories:**
+- 6 temporal type tests (DATE, TIMESTAMP)
+- 4 timezone tests (TIMESTAMP WITH TIME ZONE)
+- 4 binary tests (RAW/BLOB hex detection)
+- 6 INTERVAL tests (DAY TO SECOND, YEAR TO MONTH)
+- 2 JSON tests (validation, type inference)
+- 3 general tests (string, number, float fallback)
 
 ## See Also
 
