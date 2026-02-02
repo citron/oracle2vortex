@@ -20,6 +20,10 @@ pub struct VortexWriter {
 }
 
 impl VortexWriter {
+    /// Create a new VortexWriter instance
+    /// 
+    /// # Arguments
+    /// * `skip_lobs` - If true, LOB columns (CLOB, BLOB, etc.) will be excluded from output
     pub fn new(skip_lobs: bool) -> Self {
         Self {
             field_order: Vec::new(),
@@ -59,6 +63,13 @@ impl VortexWriter {
         }
     }
 
+    /// Add a JSON record to the buffer
+    /// 
+    /// Records are accumulated in memory and written when `flush()` is called.
+    /// LOB columns are filtered out if `skip_lobs` was set to true.
+    /// 
+    /// # Arguments
+    /// * `record` - A JSON value representing one row from Oracle
     pub async fn add_record(&mut self, record: Value) -> Result<()> {
         // Filter LOBs if skip_lobs is enabled
         let filtered_record = self.filter_lobs(&record);
@@ -444,6 +455,22 @@ impl VortexWriter {
         Some(total_micros)
     }
 
+    /// Write all accumulated records to a Vortex file
+    /// 
+    /// This performs schema inference, type detection, and conversion before writing.
+    /// The file is written with compression enabled.
+    /// 
+    /// # Arguments
+    /// * `output_path` - Path where the Vortex file should be written
+    /// 
+    /// # Type Detection
+    /// Automatic detection is performed for:
+    /// - Temporal types (DATE, TIMESTAMP, TIMESTAMP WITH TIME ZONE)
+    /// - Binary types (RAW/BLOB as hex strings)
+    /// - INTERVAL types (DAY TO SECOND, YEAR TO MONTH)
+    /// - JSON (validated but kept as string)
+    /// - Numeric types (INTEGER, FLOAT)
+    /// - String fallback for all others
     pub async fn flush<P: AsRef<Path>>(&mut self, output_path: P) -> Result<()> {
         if self.records.is_empty() {
             tracing::warn!("No records to write");
